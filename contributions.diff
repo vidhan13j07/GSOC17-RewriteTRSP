@@ -1,0 +1,5165 @@
+diff --git a/.gitignore b/.gitignore
+index 8a9206dcc..ce3e26546 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -3,8 +3,11 @@ build
+ fix_typos
+ code_linter
+ 
++tools/template/mycreate.sh
++*.sh
+ .DS_Store
+ .vagrant
+ tools/vagrant/packaging.sh
++tools/testers/pg_prove_dijkstraTRSP_tests.sh
+ .directory
+ notUsed
+diff --git a/.travis.yml b/.travis.yml
+index 1767ad4f2..f2e03ce74 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -1,5 +1,5 @@
+ # ------------------------------------------------------------------------------
+-# Travis CI scripts 
++# Travis CI scripts
+ # Copyright(c) pgRouting Contributors
+ #
+ # Main configuration
+@@ -8,7 +8,7 @@
+ #choose trusty
+ 
+ group: edge
+-dist: trusty    
++dist: trusty
+ sudo: required
+ 
+ 
+@@ -70,13 +70,13 @@ before_script:
+   - ./tools/travis/check-extensions.sh $POSTGRESQL_VERSION ___pgr___test___
+ 
+ 
+-script: 
++script:
+   - ./tools/travis/pgrouting_build.sh $POSTGRESQL_VERSION $POSTGIS_VERSION
+   # tests as part of script so if a test fails the build fails
+   - ./tools/testers/pg_prove_tests.sh $PG_USER DEBUG
+-  - ./tools/travis/pgrouting_test.sh $POSTGRESQL_VERSION $PG_USER
+ 
+-#after_script: 
++#after_script:
++  - ./tools/travis/pgrouting_test.sh $POSTGRESQL_VERSION $PG_USER -ignorenotice
+ 
+ #after_success:
+   # blank
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6f1254af6..2e2863d16 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -98,6 +98,7 @@ foreach(line ${PgRouting_CONFIGURATION_FILE})
+         list(APPEND PgRouting_DOC_DIRECTORIES "${directory}")
+     endif()
+ endforeach()
++
+ if (PGROUTING_DEBUG)
+     message(STATUS "${PgRouting_SOURCE_NAMES}")
+     message(STATUS "${PgRouting_SQL_DIRECTORIES}")
+@@ -149,7 +150,7 @@ CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+ CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS GNU_CXX_MINIMUM_VERSION)
+-        message(FATAL_ERROR "GCC version must be at least ${GNU_CXX_MINIMUM_VERSION}! 
++        message(FATAL_ERROR "GCC version must be at least ${GNU_CXX_MINIMUM_VERSION}!
+         Found version ${CMAKE_CXX_COMPILER_VERSION}")
+     endif()
+ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+@@ -290,7 +291,7 @@ endif(NOT PERL_EXECUTABLE)
+ #---------------------------------------------
+ find_package(PostgreSQL)
+ if(NOT POSTGRESQL_FOUND)
+-    message(FATAL_ERROR " Please check your PostgreSQL installation.") 
++    message(FATAL_ERROR " Please check your PostgreSQL installation.")
+ endif(NOT POSTGRESQL_FOUND)
+ 
+ if(NOT POSTGRESQL_VERSION_STRING)
+@@ -302,7 +303,7 @@ string(SUBSTRING "${POSTGRESQL_VERSION_STRING}" 11 -1 POSTGRESQL_VERSION)
+ # for XbetaY XalphaY XrcY -> X.Y
+ string(REGEX REPLACE "^([0-9]+)[beta|alpha|rc].*" "\\1.0" POSTGRESQL_VERSION ${POSTGRESQL_VERSION})
+ 
+-#for X.Y.Z -> XY  Y<10 
++#for X.Y.Z -> XY  Y<10
+ string(REGEX REPLACE "^([0-9]+)\\.([0-9]+).*" "\\1\\2" PGSQL_VERSION ${POSTGRESQL_VERSION})
+ 
+ if("${POSTGRESQL_VERSION}" VERSION_LESS "${POSTGRESQL_MINIMUM_VERSION}")
+@@ -332,7 +333,7 @@ find_package(Boost ${BOOST_MINIMUM_VERSION})
+ if(Boost_INCLUDE_DIRS)
+     message(STATUS "Boost headers were found here: ${Boost_INCLUDE_DIRS}")
+ else(Boost_INCLUDE_DIRS)
+-    message(FATAL_ERROR " Please check your Boost installation ") 
++    message(FATAL_ERROR " Please check your Boost installation ")
+ endif(Boost_INCLUDE_DIRS)
+ 
+ include_directories(${Boost_INCLUDE_DIRS})
+@@ -515,7 +516,7 @@ if(WITH_INTERNAL_TESTS)
+ endif()
+ 
+ #-------------------
+-# add the subdirectories that have the C/C++ code 
++# add the subdirectories that have the C/C++ code
+ #-------------------
+ 
+ foreach (subdir ${PgRouting_SOURCE_NAMES})
+@@ -613,4 +614,3 @@ if (PGROUTING_DEBUG)
+         message(STATUS ${f})
+     endforeach()
+ endif()
+-
+diff --git a/configuration.conf b/configuration.conf
+index 29ef3badb..b0c0da602 100644
+--- a/configuration.conf
++++ b/configuration.conf
+@@ -1,6 +1,6 @@
+ #----------------------
+ # Configuration file for compilation
+-# 
++#
+ #  Once in the file, do not change the order
+ #
+ # Directory | has C/C++ | has SQL | has DOC
+@@ -10,7 +10,7 @@
+ #----------------------
+ common              | Y | Y | Y
+ #----------------------
+-# dijkstra can not be removed 
++# dijkstra can not be removed
+ #   Has the command needed to link with prostgresl
+ #----------------------
+ dijkstra            | Y | Y | Y
+@@ -29,7 +29,8 @@ pickDeliver         | Y | Y | N
+ vrp_basic           | N | Y | Y
+ vrppdtw             | N | Y | Y
+ withPoints          | Y | Y | Y
+-#doc-dijkstraTRSP    | Y | Y | Y
++#dijkstraTRSP        | Y | N | N
++lineGraph           | Y | Y | Y
+ #areaContraction     | Y | Y | Y
+ #connectedComponentsV | Y | Y | Y
+ #----------------------
+diff --git a/doc/dijkstraTRSP/CMakeLists.txt b/doc/dijkstraTRSP/CMakeLists.txt
+new file mode 100644
+index 000000000..3a424e867
+--- /dev/null
++++ b/doc/dijkstraTRSP/CMakeLists.txt
+@@ -0,0 +1,12 @@
++
++SET(LOCAL_FILES
++    pgr_dijkstraTRSP.rst
++    )
++
++foreach (f ${LOCAL_FILES})
++    configure_file(${f} "${PGR_DOCUMENTATION_SOURCE_DIR}/${f}")
++    list(APPEND LOCAL_DOC_FILES  ${PGR_DOCUMENTATION_SOURCE_DIR}/${f})
++endforeach()
++
++set(PgRouting_DOC_FILES ${PgRouting_DOC_FILES} ${LOCAL_DOC_FILES} PARENT_SCOPE)
++
+diff --git a/doc/dijkstraTRSP/pgr_dijkstraTRSP.rst b/doc/dijkstraTRSP/pgr_dijkstraTRSP.rst
+new file mode 100644
+index 000000000..90b321f81
+--- /dev/null
++++ b/doc/dijkstraTRSP/pgr_dijkstraTRSP.rst
+@@ -0,0 +1,141 @@
++..
++   ****************************************************************************
++    pgRouting Manual
++    Copyright(c) pgRouting Contributors
++
++    This documentation is licensed under a Creative Commons Attribution-Share
++    Alike 3.0 License: http://creativecommons.org/licenses/by-sa/3.0/
++   ****************************************************************************
++
++.. _pgr_dijkstraTRSP:
++
++pgr_dijkstraTRSP
++===============================================================================
++
++``pgr_dijkstraTRSP`` — Returns the shortest path(s) using Dijkstra algorithm.
++In particular, the Dijkstra algorithm implemented by Boost.Graph.
++
++.. figure:: images/boost-inside.jpeg
++   :target: http://www.boost.org/libs/graph/doc/dijkstra_shortest_paths.html
++
++   Boost Graph Inside
++
++
++Synopsis
++-------------------------------------------------------------------------------
++
++Dijkstra's algorithm, conceived by Dutch computer scientist Edsger Dijkstra in 1956.
++It is a graph search algorithm that solves the shortest path problem for
++a graph with non-negative edge path costs, producing a shortest path from
++a starting vertex (``start_vid``) to an ending vertex (``end_vid``).
++This implementation can be used with a directed graph and an undirected graph.
++
++Characteristics
++-------------------------------------------------------------------------------
++
++The main Characteristics are:
++  - Process is done only on edges with positive costs.
++  - Values are returned when there is a path.
++
++    - When the starting vertex and ending vertex are the same, there is no path.
++
++      - The `agg_cost` the non included values `(v, v)` is `0`
++
++    - When the starting vertex and ending vertex are the different and there is no path:
++
++      - The `agg_cost` the non included values `(u, v)` is :math:`\infty`
++
++  - For optimization purposes, any duplicated value in the `start_vids` or `end_vids` are ignored.
++
++  - The returned values are ordered:
++
++    - `start_vid` ascending
++    - `end_vid` ascending
++
++  - Running time: :math:`O(| start\_vids | * (V \log V + E))`
++
++
++Signature Summary
++-----------------
++
++.. code-block:: none
++
++    pgr_dijkstra(edges_sql, start_vid,  end_vid)
++
++    RETURNS SET OF (seq, path_seq, node, edge, cost, agg_cost)
++        OR EMPTY SET
++
++
++Signatures
++-------------------------------------------------------------------------------
++
++.. index::
++    single: dijkstraTRSP(Minimal Use)
++
++Minimal signature
++.......................................
++
++.. code-block:: none
++
++    pgr_dijkstraTRSP(edges_sql, start_vid, end_vid)
++    RETURNS SET OF (seq, path_seq, node, edge, cost, agg_cost) or EMPTY SET
++
++The minimal signature is for a **directed** graph from one ``start_vid`` to one ``end_vid``:
++
++:Example:
++
++.. literalinclude:: doc-pgr_dijkstraTRSP.queries
++   :start-after: -- q1
++   :end-before: -- q2
++
++
++.. index::
++    single: dijkstraTRSP(Complete signature)
++
++Complete Signature
++.......................................
++
++.. code-block:: none
++
++    pgr_dijkstraTRSP(edges_sql, start_vid, end_vid, directed);
++    RETURNS SET OF (seq, path_seq, node, edge, cost, agg_cost) or EMPTY SET
++
++This signature finds the shortest path from one ``start_vid`` to one ``end_vid``:
++  -  on a **directed** graph when ``directed`` flag is missing or is set to ``true``.
++  -  on an **undirected** graph when ``directed`` flag is set to ``false``.
++
++:Example:
++
++.. literalinclude:: doc-pgr_dijkstraTRSP.queries
++   :start-after: -- q2
++   :end-before: -- q3
++
++
++
++Description of the Signatures
++-------------------------------------------------------------------------------
++
++.. include:: pgRouting-concepts.rst
++    :start-after: basic_edges_sql_start
++    :end-before: basic_edges_sql_end
++
++.. include:: pgr_dijkstra.rst
++    :start-after: pgr_dijkstra_parameters_start
++    :end-before: pgr_dijkstra_parameters_end
++
++.. include:: pgRouting-concepts.rst
++    :start-after: return_path_start
++    :end-before: return_path_end
++
++
++See Also
++-------------------------------------------------------------------------------
++
++* http://en.wikipedia.org/wiki/Dijkstra%27s_algorithm
++* The queries use the :ref:`sampledata` network.
++
++.. rubric:: Indices and tables
++
++* :ref:`genindex`
++* :ref:`search`
++
+diff --git a/doc/lineGraph/CMakeLists.txt b/doc/lineGraph/CMakeLists.txt
+new file mode 100644
+index 000000000..570fc3845
+--- /dev/null
++++ b/doc/lineGraph/CMakeLists.txt
+@@ -0,0 +1,13 @@
++
++SET(LOCAL_FILES
++     pgr_lineGraph.rst
++    )
++
++foreach (f ${LOCAL_FILES})
++    configure_file(${f} "${PGR_DOCUMENTATION_SOURCE_DIR}/${f}")
++    list(APPEND LOCAL_DOC_FILES  ${PGR_DOCUMENTATION_SOURCE_DIR}/${f})
++endforeach()
++
++add_subdirectory("images")
++set(PgRouting_DOC_FILES ${PgRouting_DOC_FILES} ${LOCAL_DOC_FILES} PARENT_SCOPE)
++set(PgRouting_IMG_FILES ${PgRouting_IMG_FILES} PARENT_SCOPE)
+diff --git a/doc/lineGraph/images/128px-Line_graph_construction_4.svg.png b/doc/lineGraph/images/128px-Line_graph_construction_4.svg.png
+new file mode 100644
+index 000000000..b132a5ed7
+Binary files /dev/null and b/doc/lineGraph/images/128px-Line_graph_construction_4.svg.png differ
+diff --git a/doc/lineGraph/images/135px-Line_graph_construction_1.svg.png b/doc/lineGraph/images/135px-Line_graph_construction_1.svg.png
+new file mode 100644
+index 000000000..15a136a17
+Binary files /dev/null and b/doc/lineGraph/images/135px-Line_graph_construction_1.svg.png differ
+diff --git a/doc/lineGraph/images/135px-Line_graph_construction_2.svg.png b/doc/lineGraph/images/135px-Line_graph_construction_2.svg.png
+new file mode 100644
+index 000000000..e7652375a
+Binary files /dev/null and b/doc/lineGraph/images/135px-Line_graph_construction_2.svg.png differ
+diff --git a/doc/lineGraph/images/135px-Line_graph_construction_3.svg.png b/doc/lineGraph/images/135px-Line_graph_construction_3.svg.png
+new file mode 100644
+index 000000000..284e82656
+Binary files /dev/null and b/doc/lineGraph/images/135px-Line_graph_construction_3.svg.png differ
+diff --git a/doc/lineGraph/images/CMakeLists.txt b/doc/lineGraph/images/CMakeLists.txt
+new file mode 100644
+index 000000000..966f52d72
+--- /dev/null
++++ b/doc/lineGraph/images/CMakeLists.txt
+@@ -0,0 +1,19 @@
++SET(LOCAL_FILES
++    128px-Line_graph_construction_4.svg.png
++    135px-Line_graph_construction_1.svg.png
++    135px-Line_graph_construction_2.svg.png
++    135px-Line_graph_construction_3.svg.png
++
++    Graph1.png
++    Graph2.png
++
++    Line-graph-with-edge-cost.png
++    Line-graph-with-node-cost.png
++    )
++
++foreach (f ${LOCAL_FILES})
++    configure_file(${f} "${PGR_DOCUMENTATION_SOURCE_DIR}/images/${f}" COPYONLY)
++    list(APPEND LOCAL_IMG_FILES  "${PGR_DOCUMENTATION_SOURCE_DIR}/images/${f}")
++endforeach()
++
++set(PgRouting_IMG_FILES ${PgRouting_IMG_FILES} ${LOCAL_IMG_FILES} PARENT_SCOPE)
+diff --git a/doc/lineGraph/images/Graph1.png b/doc/lineGraph/images/Graph1.png
+new file mode 100644
+index 000000000..938e9cbe0
+Binary files /dev/null and b/doc/lineGraph/images/Graph1.png differ
+diff --git a/doc/lineGraph/images/Graph2.png b/doc/lineGraph/images/Graph2.png
+new file mode 100644
+index 000000000..a4cce3dc5
+Binary files /dev/null and b/doc/lineGraph/images/Graph2.png differ
+diff --git a/doc/lineGraph/images/Line-graph-with-edge-cost.png b/doc/lineGraph/images/Line-graph-with-edge-cost.png
+new file mode 100644
+index 000000000..98bfece4d
+Binary files /dev/null and b/doc/lineGraph/images/Line-graph-with-edge-cost.png differ
+diff --git a/doc/lineGraph/images/Line-graph-with-node-cost.png b/doc/lineGraph/images/Line-graph-with-node-cost.png
+new file mode 100644
+index 000000000..967472a17
+Binary files /dev/null and b/doc/lineGraph/images/Line-graph-with-node-cost.png differ
+diff --git a/doc/lineGraph/pgr_lineGraph.rst b/doc/lineGraph/pgr_lineGraph.rst
+new file mode 100644
+index 000000000..ae8a7bcd8
+--- /dev/null
++++ b/doc/lineGraph/pgr_lineGraph.rst
+@@ -0,0 +1,171 @@
++..
++   ****************************************************************************
++    pgRouting Manual
++    Copyright(c) pgRouting Contributors
++
++    This documentation is licensed under a Creative Commons Attribution-Share
++    Alike 3.0 License: http://creativecommons.org/licenses/by-sa/3.0/
++   ****************************************************************************
++
++.. _pgr_lineGraph:
++
++pgr_lineGraph
++===============================================================================
++
++``pgr_lineGraph`` — Transforms a given graph into its corresponding edge-based graph.
++
++.. figure:: images/boost-inside.jpeg
++   :target: http://www.boost.org/libs/graph/doc/dijkstra_shortest_paths.html
++
++   Boost Graph Inside
++
++
++Synopsis
++-------------------------------------------------------------------------------
++
++Given a graph G, its line graph L(G) is a graph such that:-
++
++   - each vertex of L(G) represents an edge of G
++
++   - two vertices of L(G) are adjacent if and only if their corresponding edges
++     share a common endpoint in G.
++
++The following figures show a graph (left, with blue vertices) and its
++Line Graph (right, with green vertices).
++
++| |first|       |second|               |third|  |fourth|
++
++.. |first| image:: images/135px-Line_graph_construction_1.svg.png
++   :align: middle
++
++.. |second| image:: images/135px-Line_graph_construction_2.svg.png
++   :align: middle
++
++.. |third| image:: images/135px-Line_graph_construction_3.svg.png
++   :align: middle
++
++.. |fourth| image:: images/128px-Line_graph_construction_4.svg.png
++   :align: middle
++
++.. The images are taken from https://en.wikipedia.org/wiki/Line_graph.
++
++Signature Summary
++-----------------
++
++.. code-block:: none
++
++    pgr_lineGraph(edges_sql, directed)
++
++    RETURNS SET OF (seq, source, target, cost, reverse_cost)
++        OR EMPTY SET
++
++
++Signatures
++-------------------------------------------------------------------------------
++
++.. index::
++    single: lineGraph(Minimal Use)
++
++Minimal signature
++.......................................
++
++.. code-block:: none
++
++    pgr_lineGraph(edges_sql)
++    RETURNS SET OF (seq, source, target, cost, reverse_cost) or EMPTY SET
++
++The minimal signature is for a **directed** graph:
++
++:Example:
++
++.. literalinclude:: doc-pgr_lineGraph.queries
++   :start-after: -- q1
++   :end-before: -- q2
++
++
++.. index::
++    single: lineGraph(Complete signature)
++
++Complete Signature
++.......................................
++
++.. code-block:: none
++
++    pgr_lineGraph(edges_sql, directed);
++    RETURNS SET OF (seq, source, target, cost, reverse_cost) or EMPTY SET
++
++This signature returns the Line Graph of the current graph:
++  -  on a **directed** graph when ``directed`` flag is missing or is set to ``true``.
++  -  on an **undirected** graph when ``directed`` flag is set to ``false``.
++
++:Example:
++
++.. literalinclude:: doc-pgr_lineGraph.queries
++   :start-after: -- q2
++   :end-before: -- q3
++
++
++
++Description of the Signatures
++-------------------------------------------------------------------------------
++
++.. include:: pgRouting-concepts.rst
++    :start-after: basic_edges_sql_start
++    :end-before: basic_edges_sql_end
++
++
++Description of the parameters of the signatures
++-------------------------------------------------------------------------------
++
++======================= ====================== =================================================
++Column                  Type                   Description
++======================= ====================== =================================================
++**edges_sql**           ``TEXT``               SQL query as described above.
++**directed**            ``BOOLEAN``            * When ``true`` the graph is considered as `Directed`.
++                                               * When ``false`` the graph is considered as `Undirected`.
++======================= ====================== =================================================
++
++Description of the return values
++-------------------------------------------------------------------------------
++
++RETURNS SETOF  (seq, source, target, cost, reverse_cost)
++
++============================ =================   ===================================================================
++Column                       Type                Description
++============================ =================   ===================================================================
++**seq**                      ``INTEGER``         Sequential value starting from **1**.
++
++**source**                   ``BIGINT``          Identifier of the source vertex of the current edge `id`.
++
++                                                 * When `negative`: the source is the reverse edge in the original graph.
++
++**target**                   ``BIGINT``          Identifier of the target vertex of the current edge `id`.
++
++                                                 * When `negative`: the target is the reverse edge in the original graph.
++
++**cost**                     ``FLOAT``           Weight of the edge (`source`, `target`).
++
++                                                 * When `negative`: edge (`source`, `target`) does not exist, therefore it’s not part of the graph.
++
++**reverse_cost**             ``FLOAT``           Weight of the edge (`target`, `source`).
++
++                                                 * When `negative`: edge (`target`, `source`) does not exist, therefore it’s not part of the graph.
++============================ =================   ===================================================================
++
++Examples
++-------------------------------------------------------------------------------
++
++.. literalinclude:: doc-pgr_lineGraph.queries
++   :start-after: -- q3
++   :end-before: -- q4
++
++See Also
++-------------------------------------------------------------------------------
++
++* https://en.wikipedia.org/wiki/Line_graph
++* The queries use the :doc:`sampledata` network.
++
++.. rubric:: Indices and tables
++
++* :ref:`genindex`
++* :ref:`search`
+diff --git a/doc/queries/CMakeLists.txt b/doc/queries/CMakeLists.txt
+index 6928c6b8c..2522f9705 100644
+--- a/doc/queries/CMakeLists.txt
++++ b/doc/queries/CMakeLists.txt
+@@ -26,6 +26,7 @@ SET(LOCAL_FILES
+     doc-contraction.queries
+     doc-pgr_bdAstarCost.queries
+     doc-pgr_dijkstra.queries
++    doc-pgr_dijkstraTRSP.queries
+     doc-pgr_labelGraph.queries
+     doc-pgr_withPointsCost.queries
+     doc-trsp.queries
+@@ -43,6 +44,7 @@ SET(LOCAL_FILES
+     trsp_notes_v2.5.0.queries
+     oneDepotWrapper.queries
+     doc-gsoc_vrppdtw.queries
++    doc-pgr_lineGraph.queries
+     )
+ 
+ foreach (f ${LOCAL_FILES})
+@@ -51,4 +53,3 @@ foreach (f ${LOCAL_FILES})
+ endforeach()
+ 
+ set(PgRouting_DOC_FILES ${PgRouting_DOC_FILES} ${LOCAL_DOC_FILES} PARENT_SCOPE)
+-
+diff --git a/doc/queries/doc-pgr_dijkstraTRSP.queries b/doc/queries/doc-pgr_dijkstraTRSP.queries
+new file mode 100644
+index 000000000..f944c67b8
+--- /dev/null
++++ b/doc/queries/doc-pgr_dijkstraTRSP.queries
+@@ -0,0 +1,32 @@
++BEGIN;
++BEGIN
++-- q1
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    2, 3
++);
++ seq | path_seq | node | edge | cost | agg_cost 
++-----+----------+------+------+------+----------
++   1 |        1 |    2 |    4 |    1 |        0
++   2 |        2 |    5 |    8 |    1 |        1
++   3 |        3 |    6 |    9 |    1 |        2
++   4 |        4 |    9 |   16 |    1 |        3
++   5 |        5 |    4 |    3 |    1 |        4
++   6 |        6 |    3 |   -1 |    0 |        5
++(6 rows)
++
++-- q2
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    2, 3,
++    FALSE
++);
++ seq | path_seq | node | edge | cost | agg_cost 
++-----+----------+------+------+------+----------
++   1 |        1 |    2 |    2 |    1 |        0
++   2 |        2 |    3 |   -1 |    0 |        1
++(2 rows)
++
++-- q3
++ROLLBACK;
++ROLLBACK
+diff --git a/doc/queries/doc-pgr_lineGraph.queries b/doc/queries/doc-pgr_lineGraph.queries
+new file mode 100644
+index 000000000..5c99bf47d
+--- /dev/null
++++ b/doc/queries/doc-pgr_lineGraph.queries
+@@ -0,0 +1,68 @@
++-BEGIN;
++ -BEGIN
++ --- q1
++ -SELECT * FROM edge_table;
++ - ID | source | target | cost | reverse_cost
++ -----+--------+--------+------+--------------
++ -  1 |      1 |      2 |    1 |             1
++ -  2 |      2 |      3 |   -1 |             1
++ -  3 |      3 |      4 |   -1 |             1
++ -  4 |      2 |      5 |    1 |             1
++ -(4 rows)
++ -
++ -SELECT * FROM pgr_lineGraph(
++ -    'SELECT id, source, target, cost, reverse_cost FROM edge_table'
++ -);
++ - seq | source | target | cost | reverse_cost
++ ------+--------+--------+------+--------------
++ -   1 |     -4 |     -1 |    1 |            1
++ -   2 |     -3 |     -2 |    1 |           -1
++ -   3 |     -2 |     -1 |    1 |           -1
++ -   4 |     -2 |      4 |    1 |           -1
++ -(4 rows)
++ -
++ --- q2
++ -SELECT * FROM edge_table;
++ - ID | source | target | cost | reverse_cost
++ -----+--------+--------+------+--------------
++ -  1 |      1 |      2 |    1 |             1
++ -  2 |      2 |      3 |   -1 |             1
++ -  3 |      3 |      4 |   -1 |             1
++ -(3 rows)
++ -
++ -SELECT * FROM pgr_lineGraph(
++ -    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++ -    FALSE
++ -);
++ - seq | source | target | cost | reverse_cost
++ ------+--------+--------+------+--------------
++ -   1 |     -2 |     -1 |    1 |           -1
++ -   2 |     -2 |      1 |    1 |           -1
++ -   3 |      1 |     -2 |    1 |           -1
++ -   4 |     -1 |     -2 |    1 |           -1
++ -   5 |     -3 |     -2 |    1 |           -1
++ -   6 |     -2 |     -3 |    1 |           -1
++ -(6 rows)
++ -
++ --- q3
++ -SELECT * FROM edge_table;
++ - ID | source | target | cost | reverse_cost
++ -----+--------+--------+------+--------------
++ -  1 |      1 |      2 |   10 |            -1
++ -  2 |      2 |      1 |   25 |            -1
++ -  3 |      2 |      3 |   20 |            25
++ -(3 rows)
++ -
++ -SELECT * FROM pgr_lineGraph(
++ -    'SELECT id, source, target, cost, reverse_cost FROM edge_table'
++ -);
++ - seq | source | target | cost | reverse_cost
++ ------+--------+--------+------+--------------
++ -   1 |     -3 |      2 |    1 |           -1
++ -   2 |      1 |      3 |    1 |           -1
++ -   3 |      2 |      1 |    1 |            1
++ -(3 rows)
++ -
++ --- q4
++ -ROLLBACK;
++ -ROLLBACK
+diff --git a/doc/src/proposed.rst b/doc/src/proposed.rst
+index 164ea91a9..8221cc1f3 100644
+--- a/doc/src/proposed.rst
++++ b/doc/src/proposed.rst
+@@ -38,19 +38,19 @@ As part of the :ref:`dijkstra`
+ .. rubric:: Families
+ 
+ :ref:`astar`
+- 
++
+ .. include:: aStar-family.rst
+    :start-after: index from here
+    :end-before: index to here
+ 
+ :ref:`bdAstar`
+- 
++
+ .. include:: bdAstar-family.rst
+    :start-after: index from here
+    :end-before: index to here
+ 
+ :ref:`bdDijkstra`
+- 
++
+ .. include:: bdDijkstra-family.rst
+    :start-after: index from here
+    :end-before: index to here
+@@ -153,6 +153,14 @@ Experimental and Proposed functions
+   pgr_gsoc_vrppdtw
+   pgr_vrpOneDepot
+ 
++.. rubric:: Graph Transformation
++
++:doc:`pgr_lineGraph`
++
++.. toctree::
++  :hidden:
++
++  pgr_lineGraph
+ 
+ 
+ ..
+@@ -163,4 +171,3 @@ Experimental and Proposed functions
+     :hidden:
+     ..
+      ../src/funnyDijkstra/doc/pgr_funnyDijkstra.rst
+-
+diff --git a/include/c_common/get_check_data.h b/include/c_common/get_check_data.h
+index 17602606c..5aead0d36 100644
+--- a/include/c_common/get_check_data.h
++++ b/include/c_common/get_check_data.h
+@@ -40,6 +40,7 @@ void pgr_check_any_numerical_type(Column_info_t info);
+ void pgr_check_char_type(Column_info_t info);
+ void pgr_check_text_type(Column_info_t info);
+ void pgr_check_boolean_type(Column_info_t info);
++void pgr_check_any_integerarray_type(Column_info_t info);
+ 
+ 
+ char pgr_SPI_getChar(
+diff --git a/include/c_common/restrict_input.h b/include/c_common/restrict_input.h
+new file mode 100644
+index 000000000..fc76a0f4b
+--- /dev/null
++++ b/include/c_common/restrict_input.h
+@@ -0,0 +1,38 @@
++/*PGR-GNU*****************************************************************
++File: restrict_input.h
++
++Copyright (c) 2017 Celia Virginia Vergara Castillo
++Mail: vicky_vergara@hotmail.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++/*! @file */
++
++
++#ifndef INCLUDE_C_COMMON_RESTRICT_INPUT_H_
++#define INCLUDE_C_COMMON_RESTRICT_INPUT_H_
++#pragma once
++
++#include "c_types/restrict_t.h"
++
++void pgr_get_restriction_data(
++        char *restrictions_sql,
++        Restrict_t **restrictions,
++        size_t *total_restrictions);
++
++#endif  // INCLUDE_C_COMMON_RESTRICT_INPUT_H_
+diff --git a/include/c_types/column_info_t.h b/include/c_types/column_info_t.h
+index f5421eb73..026d7fb31 100644
+--- a/include/c_types/column_info_t.h
++++ b/include/c_types/column_info_t.h
+@@ -62,7 +62,8 @@ enum {
+     ANY_INTEGER,
+     ANY_NUMERICAL,
+     TEXT,
+-    CHAR1
++    CHAR1,
++    ANY_INTEGER_ARRAY
+ } expectType;
+ 
+ 
+@@ -77,4 +78,3 @@ struct {
+ 
+ 
+ #endif  // INCLUDE_C_TYPES_COLUMN_INFO_T_H_
+-
+diff --git a/include/c_types/line_graph_rt.h b/include/c_types/line_graph_rt.h
+new file mode 100644
+index 000000000..7b822ea8f
+--- /dev/null
++++ b/include/c_types/line_graph_rt.h
+@@ -0,0 +1,69 @@
++/*PGR-GNU*****************************************************************
++File: line_graph_rt.h
++
++Copyright (c) 2017 Celia Virginia Vergara Castillo
++Mail: vicky_vergara@hotmail.com
++
++Developed by: Vidhan Jain
++Mail: vidhanj1307@gmail.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++/*! @file */
++
++#ifndef INCLUDE_C_TYPES_LINE_GRAPH_RT_H_
++#define INCLUDE_C_TYPES_LINE_GRAPH_RT_H_
++#pragma once
++
++
++#ifdef __cplusplus
++
++#include <cstddef>
++
++#else  // __cplusplus
++
++// for bool
++#ifdef __GNUC__
++#pragma GCC diagnostic ignored "-pedantic"
++#endif
++
++#include <postgres.h>
++
++#ifdef __GNUC__
++#pragma GCC diagnostic pop
++#endif
++
++// For NULL & size_t
++#include <stdlib.h>
++
++
++#endif  // __cplusplus
++
++// For int64_t etc
++#include <stdint.h>
++
++
++typedef struct {
++    int64_t id;
++    int64_t source;
++    int64_t target;
++    float cost;
++    float reverse_cost;
++} Line_graph_rt;
++
++#endif  // INCLUDE_C_TYPES_LINE_GRAPH_RT_H_
+diff --git a/include/c_types/restrict_t.h b/include/c_types/restrict_t.h
+index 4bc2c9a1d..de2df5b3a 100644
+--- a/include/c_types/restrict_t.h
++++ b/include/c_types/restrict_t.h
+@@ -58,9 +58,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ #define  MAX_RULE_LENGTH 5
+ 
+ typedef struct {
+-    int64_t target_id;
+-    double to_cost;
+-    int64_t via[MAX_RULE_LENGTH];
++    int64_t id;
++    double cost;
++    int64_t restricted_edges[MAX_RULE_LENGTH];
+ }
+ Restrict_t;
+ 
+diff --git a/include/cpp_common/line_vertex.h b/include/cpp_common/line_vertex.h
+new file mode 100644
+index 000000000..0236e2c92
+--- /dev/null
++++ b/include/cpp_common/line_vertex.h
+@@ -0,0 +1,98 @@
++/*PGR-GNU*****************************************************************
++File: line_vertex.h
++Generated with Template by:
++Copyright (c) 2015 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307@gmail.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++/*! @file */
++
++#ifndef INCLUDE_CPP_COMMON_LINE_VERTEX_H_
++#define INCLUDE_CPP_COMMON_LINE_VERTEX_H_
++#pragma once
++
++#include <vector>
++#include <ostream>
++
++#include "c_types/pgr_edge_t.h"
++
++
++
++namespace pgrouting {
++
++class Line_vertex {
++ public:
++     Line_vertex() :
++         id(0) {}
++
++     Line_vertex(const pgr_edge_t& edge) :
++         id(edge.id),
++         vertex_id(edge.id),
++         source(edge.source),
++         target(edge.target),
++         cost(edge.cost) {}
++
++     Line_vertex(const Line_vertex &v) :
++         id(v.id),
++         vertex_id(v.vertex_id),
++         source(v.source),
++         target(v.target),
++         cost(v.cost) {}
++
++     void cp_members(const Line_vertex &other) {
++         this->id = other.id;
++         this->vertex_id = other.vertex_id;
++         this->cost = other.cost;
++         this->source = other.source;
++         this->target = other.target;
++     }
++
++     void cp_members(int64_t _id, int64_t _source) {
++         this->id = _id;
++         this->vertex_id = -1;
++         this->cost = 0;
++         this->source = _source;
++         this->target = -1;
++     }
++
++     friend std::ostream& operator<<(std::ostream& log, const Line_vertex &v) {
++         log << "\nid = " << v.id;
++         log << " | vertex_id = " << v.vertex_id;
++         log << " | source = " << v.source;
++         log << " | target = " << v.target;
++         log << " | cost = " << v.cost;
++         return log;
++     }
++
++ public:
++     int64_t id;
++     int64_t vertex_id;
++     int64_t source;
++     int64_t target;
++     double cost;
++};
++
++}  // namespace pgrouting
++
++#endif  // INCLUDE_CPP_COMMON_LINE_VERTEX_H_
+diff --git a/include/dijkstraTRSP/pgr_dijkstraTRSP.hpp b/include/dijkstraTRSP/pgr_dijkstraTRSP.hpp
+new file mode 100644
+index 000000000..5a198e118
+--- /dev/null
++++ b/include/dijkstraTRSP/pgr_dijkstraTRSP.hpp
+@@ -0,0 +1,201 @@
++/*PGR-GNU*****************************************************************
++File: pgr_dijkstraTRSP.hpp
++Copyright (c) 2017 Celia Virginia Vergara Castillo
++Mail: vicky_vergara@hotmail.com
++------
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++********************************************************************PGR-GNU*/
++#ifndef INCLUDE_DIJKSTRATRSP_PGR_DIJKSTRATRSP_HPP_
++#define INCLUDE_DIJKSTRATRSP_PGR_DIJKSTRATRSP_HPP_
++#pragma once
++
++#include "dijkstra/pgr_dijkstra.hpp"
++#include "c_types/line_graph_rt.h"
++
++#include "lineGraph/pgr_lineGraph.hpp"
++
++#include <sstream>
++#include <deque>
++#include <vector>
++#include <set>
++#include <limits>
++
++#include "cpp_common/pgr_assert.h"
++#include "cpp_common/basePath_SSEC.hpp"
++
++
++template < class G >
++class Pgr_dijkstraTRSP {
++ public:
++     Path dijkstraTRSP(
++             G& graph,
++             const std::vector< Restriction >& restrictions,
++             const std::vector< pgr_edge_t >& edges,
++             int64_t source,
++             int64_t target,
++             bool only_cost,
++             bool strict);
++     void clear();
++ private:
++     void executeDijkstraTRSP(G& graph);
++     void getDijkstraSolution(G& graph);
++     bool has_restriction();
++     bool has_a_restriction(int64_t edge, int64_t index);
++ private:
++     typedef typename G::V V;
++     V v_source;
++     V v_target;
++     int64_t m_start;
++     int64_t m_end;
++     std::vector< Restriction > m_restrictions;
++     std::vector< int64_t > m_edges_in_path;
++     bool m_only_cost;
++     bool m_strict;
++
++     Path curr_result_path;
++
++ public:
++     std::ostringstream log;
++};
++
++template < class G >
++void Pgr_dijkstraTRSP< G >::clear() {
++}
++
++template < class G >
++Path
++Pgr_dijkstraTRSP< G >::dijkstraTRSP(
++        G& graph,
++        const std::vector< Restriction >& restrictions,
++        const std::vector< pgr_edge_t >& edges,
++        int64_t start_vertex,
++        int64_t end_vertex,
++        bool only_cost,
++        bool strict) {
++    if (start_vertex == end_vertex)
++        return Path();
++    if (!graph.has_vertex(start_vertex) || !graph.has_vertex(end_vertex))
++        return Path();
++
++    m_only_cost = only_cost;
++    v_source = graph.get_V(start_vertex);
++    v_target = graph.get_V(end_vertex);
++    m_start = start_vertex;
++    m_end = end_vertex;
++    m_restrictions = restrictions;
++    m_strict = strict;
++    executeDijkstraTRSP(graph);
++    if (curr_result_path.size() or graph.m_gType == UNDIRECTED)
++        return curr_result_path;
++
++#if 0
++    pgrouting::LinearDirectedGraph line(DIRECTED);
++    line.insert_vertices(edges);
++    auto line_graph_edges = line.transform(graph);
++    log << "\nGraph before removing restrictions\n" << line << "\n";
++    auto remaining_restrictions = line.remove_restricted_edges(m_restrictions);
++    log << "\n Graph after removing restrictions\n" << line << "\n";
++
++    log << line.log.str().c_str() << "\n\n\n";
++
++    line.create_virtual_vertices();
++    log << line << "\n";
++#endif
++
++    return curr_result_path;
++}
++
++template < class G >
++void Pgr_dijkstraTRSP< G >::getDijkstraSolution(G& graph) {
++     Path path;
++
++     Pgr_dijkstra< G > fn_dijkstra;
++     path = fn_dijkstra.dijkstra(graph, m_start, m_end);
++
++     if (path.empty()) return;
++     curr_result_path = path;
++}
++
++template < class G >
++bool Pgr_dijkstraTRSP< G >::has_a_restriction(int64_t edge, int64_t index) {
++    auto lower_bound_cmp = [](const Restriction& r, const int64_t& target) {
++        return r.restrict_edges()[0] < target;
++    };
++    auto edge_index = std::lower_bound(m_restrictions.begin(),
++        m_restrictions.end(), edge, lower_bound_cmp) - m_restrictions.begin();
++    log << "\nResult generated from lower_bound\n";
++    while (edge_index < (int64_t)m_restrictions.size()) {
++        auto r_edges = m_restrictions[edge_index].restrict_edges();
++        if (r_edges[0] != edge) break;
++        log << m_restrictions[edge_index] << "\n";
++        bool okay = true;
++        size_t temp_edge_index = index;
++
++        for (auto &edge_id: r_edges) {
++            if (temp_edge_index >= m_edges_in_path.size() or
++                m_edges_in_path[temp_edge_index] != edge_id) {
++                okay = false;
++                break;
++            }
++            temp_edge_index++;
++        }
++        log << "\nokay value = " << okay <<"\n";
++        if (okay) return true;
++        edge_index++;
++    }
++    log << "Ends Here\n";
++    return false;
++}
++
++template < class G >
++bool Pgr_dijkstraTRSP< G >::has_restriction() {
++    auto sort_cmp = [](const Restriction& left,
++         const Restriction& right) -> bool {
++           return left.restrict_edges()[0] <= right.restrict_edges()[0];
++       };
++    std::stable_sort(m_restrictions.begin(), m_restrictions.end(),
++        sort_cmp);
++    log << "\nRestriction array after sorting.\n";
++    for (auto &it: m_restrictions) log << it << "\n";
++    log << "\nEnd\n";
++    size_t index = 0;
++    for (auto &edge: m_edges_in_path) {
++        if (has_a_restriction(edge, index))
++            return true;
++        index++;
++    }
++    return false;
++}
++
++template < class G >
++void Pgr_dijkstraTRSP< G >::executeDijkstraTRSP(G& graph) {
++    clear();
++    getDijkstraSolution(graph);
++    log << curr_result_path;
++
++    for (auto &path: curr_result_path) {
++        m_edges_in_path.push_back(path.edge);
++    }
++    while (m_edges_in_path.size() and m_edges_in_path.back() == -1) {
++        m_edges_in_path.pop_back();
++    }
++
++    log << "Edges in m_edges_in_path:-------------------\n";
++    for(auto &it: m_edges_in_path) log << it << "\n";
++    log << "---------------------------------------------\n";
++    bool sol = has_restriction();
++    log << "Result of valid solution: " << sol << "\n";
++    if (sol) curr_result_path = Path();
++}
++
++#endif  // INCLUDE_DIJKSTRATRSP_PGR_DIJKSTRATRSP_HPP_
+diff --git a/include/dijkstraTRSP/restriction.h b/include/dijkstraTRSP/restriction.h
+new file mode 100644
+index 000000000..e4af5242d
+--- /dev/null
++++ b/include/dijkstraTRSP/restriction.h
+@@ -0,0 +1,58 @@
++/*PGR-GNU*****************************************************************
++File: restriction.h
++Copyright (c) 2017 Celia Virginia Vergara Castillo
++Mail: vicky_vergara@hotmail.com
++------
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++********************************************************************PGR-GNU*/
++
++#ifndef INCLUDE_DIJKSTRATRSP_RESTRICTION_H
++#define INCLUDE_DIJKSTRATRSP_RESTRICTION_H
++#pragma once
++
++#include <sstream>
++#include <deque>
++#include <vector>
++#include <set>
++#include <limits>
++
++#include "c_types/restrict_t.h"
++
++class Restriction {
++    private:
++        int64_t m_id;
++        std::vector< int64_t > m_restrict_edges;
++        double m_cost;
++
++    public:
++        Restriction() = default;
++        Restriction(const Restrict_t &r);
++
++        int64_t id() const {return m_id;}
++        void id(const int64_t& value) {m_id = value;}
++
++        double cost() const {return m_cost;}
++        void cost(const double& value) {m_cost = value;}
++
++        std::vector< int64_t > restrict_edges() const {return m_restrict_edges;}
++        void restrict_edges(const int64_t& value) {m_restrict_edges.push_back(value);}
++        void clear() {
++            m_restrict_edges.clear();
++        }
++
++        int64_t restriction_size() const {return m_restrict_edges.size();}
++
++        friend std::ostream& operator << (std::ostream &log, const Restriction &r);
++};
++
++#endif // INCLUDE_DIJKSTRATRSP_RESTRICTION_H
+diff --git a/include/drivers/dijkstraTRSP/dijkstraTRSP_driver.h b/include/drivers/dijkstraTRSP/dijkstraTRSP_driver.h
+new file mode 100644
+index 000000000..8c2c491aa
+--- /dev/null
++++ b/include/drivers/dijkstraTRSP/dijkstraTRSP_driver.h
+@@ -0,0 +1,74 @@
++/*PGR-GNU*****************************************************************
++File: dijkstraTRSP_driver.h
++
++Generated with Template by:
++Copyright (c) 2015 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2015 Celia Virginia Vergara Castillo
++Mail: vicky_vergara@hotmail.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++#ifndef INCLUDE_DRIVERS_DIJKSTRATRSP_DIJKSTRATRSP_DRIVER_H_
++#define INCLUDE_DRIVERS_DIJKSTRATRSP_DIJKSTRATRSP_DRIVER_H_
++#pragma once
++
++#include "c_types/pgr_edge_t.h"
++#include "c_types/general_path_element_t.h"
++#include "c_types/restrict_t.h"
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++    /*********************************************************
++      TEXT,
++    TEXT,
++    BIGINT,
++    BIGINT,
++    directed BOOLEAN DEFAULT true,
++    only_cost BOOLEAN DEFAULT false,
++     ********************************************************/
++
++
++    void
++        do_pgr_dijkstraTRSP(
++                pgr_edge_t  *data_edges,
++                size_t total_edges,
++                Restrict_t *restrictions,
++                size_t total_restrictions,
++                int64_t start_vid,
++                int64_t end_vid,
++                bool directed,
++                bool only_cost,
++                bool strict,
++                General_path_element_t **return_tuples,
++                size_t *return_count,
++                char ** log_msg,
++                char ** notice_msg,
++                char ** err_msg);
++
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif  // INCLUDE_DRIVERS_DIJKSTRATRSP_DIJKSTRATRSP_DRIVER_H_
+diff --git a/include/drivers/lineGraph/lineGraph_driver.h b/include/drivers/lineGraph/lineGraph_driver.h
+new file mode 100644
+index 000000000..8ffd3c416
+--- /dev/null
++++ b/include/drivers/lineGraph/lineGraph_driver.h
+@@ -0,0 +1,63 @@
++/*PGR-GNU*****************************************************************
++File: lineGraph_driver.h
++
++Generated with Template by:
++Copyright (c) 2015 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2015 Celia Virginia Vergara Castillo
++Mail: vicky_vergara@hotmail.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++#ifndef INCLUDE_DRIVERS_LINEGRAPH_LINEGRAPH_DRIVER_H_
++#define INCLUDE_DRIVERS_LINEGRAPH_LINEGRAPH_DRIVER_H_
++#pragma once
++
++#include "c_types/pgr_edge_t.h"
++#include "c_types/line_graph_rt.h"
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++    /*********************************************************
++      TEXT,
++    directed BOOLEAN DEFAULT true,
++     ********************************************************/
++
++
++    void
++        do_pgr_lineGraph(
++                pgr_edge_t  *data_edges,
++                size_t total_edges,
++                bool directed,
++                Line_graph_rt **return_tuples,
++                size_t *return_count,
++                char ** log_msg,
++                char ** notice_msg,
++                char ** err_msg);
++
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif  // INCLUDE_DRIVERS_LINEGRAPH_LINEGRAPH_DRIVER_H_
+diff --git a/include/lineGraph/pgr_lineGraph.hpp b/include/lineGraph/pgr_lineGraph.hpp
+new file mode 100644
+index 000000000..83c875be1
+--- /dev/null
++++ b/include/lineGraph/pgr_lineGraph.hpp
+@@ -0,0 +1,590 @@
++/*PGR-GNU*****************************************************************
++File: pgr_lineGraph.hpp
++Generated with Template by:
++Copyright (c) 2015 pgRouting developers
++Mail: project@pgrouting.org
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307@gmail.com
++------
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++ ********************************************************************PGR-GNU*/
++
++#ifndef INCLUDE_COMPONENTS_PGR_LINEGRAPH_HPP_
++#define INCLUDE_COMPONENTS_PGR_LINEGRAPH_HPP_
++#pragma once
++
++
++#include <vector>
++#include <set>
++#include <utility>
++#include <map>
++
++#include "cpp_common/pgr_base_graph.hpp"
++#include "cpp_common/line_vertex.h"
++#include "dijkstraTRSP/restriction.h"
++
++namespace pgrouting {
++
++namespace graph {
++template <class G, typename T_V, typename T_E>
++class Pgr_lineGraph;
++}  // namespace graph
++
++typedef graph::Pgr_lineGraph <
++boost::adjacency_list < boost::vecS, boost::vecS,
++    boost::bidirectionalS,
++    Line_vertex, Basic_edge >,
++    Line_vertex, Basic_edge > LinearDirectedGraph;
++
++namespace graph {
++
++template <class G, typename T_V, typename T_E>
++class Pgr_lineGraph : public Pgr_base_graph<G, T_V, T_E> {
++ private:
++    int64_t m_num_edges;
++    std::map < int64_t, pgr_edge_t > m_edges;
++    std::map < std::pair< int64_t, int64_t >, int64_t > m_vertex_map;
++
++    void add_vertices(std::vector< T_V > vertices);
++
++    void create_edges(const pgrouting::DirectedGraph& digraph);
++
++    template < typename T >
++        void graph_add_edge(int64_t, const T &source, const T&target, int64_t, int64_t);
++
++#if 0
++    template < typename T >
++    void disconnect_edge(const T& from, const T& to);
++
++    template < typename T >
++    void get_ids(std::vector< T >& restrictions);
++
++    void create_virtual_vertex(int64_t id);
++    void create_virtual_edge(
++            int64_t source_id,
++            int64_t source_vertex,
++            int64_t target_id,
++            int64_t target_vertex
++        );
++#endif
++
++ public:
++    typedef typename boost::graph_traits < G >::vertex_descriptor V;
++    typedef typename boost::graph_traits < G >::edge_descriptor E;
++    typedef typename boost::graph_traits < G >::vertex_iterator V_i;
++    typedef typename boost::graph_traits < G >::out_edge_iterator EO_i;
++    typedef typename boost::graph_traits < G >::in_edge_iterator EI_i;
++
++    std::ostringstream log;
++
++    explicit Pgr_lineGraph< G, T_V, T_E >(graphType gtype)
++         : Pgr_base_graph< G, T_V, T_E >(gtype),
++           m_num_edges(0) {
++         }
++
++    template < typename T >
++        void insert_vertices(const T* edges, int64_t count) {
++            insert_vertices(std::vector < T >(edges, edges + count));
++        }
++
++    template < typename T >
++        void insert_vertices(const std::vector < T > &edges) {
++
++            for (auto &it: edges)
++                m_edges[it.id] = it;
++            std::vector < Line_vertex > vertices = extract_vertices();
++
++#if 1
++            log << "\nVertices of line graph: \n";
++            for (auto vertex: vertices) {
++                log << vertex.id << "(" << vertex.source << " - > ";
++                log << vertex.target << ")" << vertex.cost << "\n";
++            }
++#endif
++
++            add_vertices(vertices);
++        }
++
++#if 0
++    template < typename T >
++        std::vector< Restriction > remove_restricted_edges(std::vector< T >& restrictions) {
++            get_ids(restrictions);
++            std::vector< T > remaining;
++            for (const auto &r: restrictions) {
++                if (r.restriction_size() > 2) {
++                    remaining.push_back(r);
++                    continue;
++                }
++                disconnect_edge(r.restrict_edges()[0], r.restrict_edges()[1]);
++            }
++            return remaining;
++        }
++#endif
++
++    std::vector < Line_vertex > extract_vertices();
++
++    void transform(pgrouting::DirectedGraph& digraph) {
++        create_edges(digraph);
++    }
++
++#if 0
++    void create_virtual_vertices();
++#endif
++
++    int64_t num_edges() const { return m_num_edges; }
++    std::vector< Line_graph_rt > get_postgres_results_undirected();
++    std::vector< Line_graph_rt > get_postgres_results_directed();
++
++    friend std::ostream& operator<<(
++            std::ostream &log, const Pgr_lineGraph< G, T_V, T_E > &g) {
++        typename Pgr_base_graph< G, T_V, T_E >::EO_i out, out_end;
++
++        for (auto vi = vertices(g.graph).first;
++                vi != vertices(g.graph).second; ++vi) {
++            if ((*vi) >= g.m_num_vertices) break;
++            log << (*vi) << ": " << " out_edges_of(" << g.graph[(*vi)] << "):";
++            for (boost::tie(out, out_end) = out_edges(*vi, g.graph);
++                    out != out_end; ++out) {
++                log << ' '
++                    << g.graph[*out].id << "=("
++                    << g[g.source(*out)].id << ", "
++                    << g[g.target(*out)].id << ")\t";
++            }
++            log << std::endl;
++        }
++        return log;
++    }
++};
++
++template < class G, typename T_V, typename T_E >
++std::vector< Line_graph_rt >
++Pgr_lineGraph< G, T_V, T_E >::get_postgres_results_undirected() {
++    std::vector< Line_graph_rt > results;
++
++    typename boost::graph_traits < G >::edge_iterator edgeIt, edgeEnd;
++    int64_t count = 0;
++
++    log << "\nPostgres results\n";
++    for (boost::tie(edgeIt, edgeEnd) = boost::edges(this->graph);
++            edgeIt != edgeEnd; edgeIt++) {
++        E e = *edgeIt;
++        auto e_source = this->graph[this->source(e)].vertex_id;
++        auto e_target = this->graph[this->target(e)].vertex_id;
++
++        log << "e_source = " << e_source << " | e_target = " << e_target << "\n";
++
++        Line_graph_rt edge = {
++            ++count,
++            e_source,
++            e_target,
++            1.0,
++            -1.0
++        };
++        results.push_back(edge);
++    }
++
++    return results;
++}
++
++template < class G, typename T_V, typename T_E >
++std::vector< Line_graph_rt >
++Pgr_lineGraph< G, T_V, T_E >::get_postgres_results_directed() {
++    std::vector< Line_graph_rt > results;
++
++    typename boost::graph_traits < G >::edge_iterator edgeIt, edgeEnd;
++    std::map < std::pair<int64_t,int64_t >, Line_graph_rt > unique;
++    int64_t count = 0;
++
++    log << "\nPostgres results\n";
++    for (boost::tie(edgeIt, edgeEnd) = boost::edges(this->graph);
++            edgeIt != edgeEnd; edgeIt++) {
++        E e = *edgeIt;
++        auto e_source = this->graph[this->source(e)].vertex_id;
++        auto e_target = this->graph[this->target(e)].vertex_id;
++
++        log << "e_source = " << e_source << " | e_target = " << e_target << "\n";
++
++        if(unique.find( {e_target, e_source} ) != unique.end()) {
++            unique[ {e_target, e_source} ].reverse_cost = 1.0;
++            continue;
++        }
++        e_source *= -1;
++        e_target *= -1;
++        if(unique.find( {e_target, e_source} ) != unique.end()) {
++            unique[ {e_target, e_source} ].reverse_cost = 1.0;
++            continue;
++        }
++        e_source *= -1;
++        e_target *= -1;
++
++        Line_graph_rt edge = {
++            ++count,
++            e_source,
++            e_target,
++            1.0,
++            -1.0
++        };
++        unique[ {e_source, e_target} ] = edge;
++    }
++    for (const auto &edge: unique) {
++        results.push_back(edge.second);
++    }
++    return results;
++}
++
++#if 0
++template < class G, typename T_V, typename T_E >
++template < typename T >
++void
++Pgr_lineGraph< G, T_V, T_E >::get_ids(std::vector< T >& restrictions) {
++    for (auto &r: restrictions) {
++        auto restrict_edges = r.restrict_edges();
++        std::vector < int64_t > temp;
++
++        pgassert(m_edges.find(restrict_edges[0]) != m_edges.end());
++        auto prev = m_edges[restrict_edges[0]];
++
++        for (auto i = 1; i < (int64_t)restrict_edges.size(); i++) {
++            pgassert(m_edges.find(restrict_edges[i]) != m_edges.end());
++            auto cur = m_edges[restrict_edges[i]];
++
++            if (prev.target == cur.target) {
++                std::swap(cur.source, cur.target);
++                std::swap(cur.cost, cur.reverse_cost);
++            }
++
++            if(prev.source == cur.source) {
++                std::swap(prev.source, prev.target);
++                std::swap(prev.cost, prev.reverse_cost);
++            }
++
++            if(prev.source == cur.target) {
++                std::swap(prev.source, prev.target);
++                std::swap(prev.cost, prev.reverse_cost);
++                std::swap(cur.source, cur.target);
++                std::swap(cur.cost, cur.reverse_cost);
++            }
++
++            pgassert(m_vertex_map.find( {prev.id, prev.source} ) != m_vertex_map.end());
++            pgassert(m_vertex_map.find( {cur.id, cur.source} ) != m_vertex_map.end());
++
++            if (temp.empty()) {
++                temp.push_back( m_vertex_map[ {prev.id, prev.source} ] );
++            }
++
++            temp.push_back( m_vertex_map[ {cur.id, cur.source} ] );
++            prev = cur;
++        }
++        r.clear();
++        for (const auto &it: temp) r.restrict_edges(it);
++    }
++}
++
++template < class G, typename T_V, typename T_E >
++template < typename T >
++void
++Pgr_lineGraph< G, T_V, T_E >::disconnect_edge(const T& from, const T& to) {
++
++    pgassert(this->vertices_map.find(from) != this->vertices_map.end());
++    pgassert(this->vertices_map.find(to) != this->vertices_map.end());
++
++    auto vm_s = this->get_V(from);
++    auto vm_t = this->get_V(to);
++
++    boost::remove_edge(vm_s, vm_t, this->graph);
++}
++
++template < class G, typename T_V, typename T_E >
++void
++Pgr_lineGraph< G, T_V, T_E >::create_virtual_vertex(int64_t id) {
++    ++(this->m_num_vertices);
++    auto v = add_vertex(this->graph);
++    this->vertices_map[this->m_num_vertices] = v;
++    this->graph[v].cp_members(this->m_num_vertices, id);
++    m_vertex_map[ {id, -1} ] = this->m_num_vertices;
++    pgassert(boost::num_vertices(this->graph) == this->num_vertices());
++}
++
++template < class G, typename T_V, typename T_E >
++void
++Pgr_lineGraph< G, T_V, T_E >::create_virtual_edge(
++        int64_t source_id,
++        int64_t source_vertex,
++        int64_t target_id,
++        int64_t target_vertex) {
++    bool inserted;
++    typename Pgr_base_graph< G, T_V, T_E >::E e;
++
++    if (source_id < 0) source_id *= -1;
++    if (target_id < 0) target_id *= -1;
++
++    pgassert(m_vertex_map.find( {source_id, source_vertex} ) !=
++        m_vertex_map.end());
++    pgassert(m_vertex_map.find( {target_id, target_vertex} ) !=
++            m_vertex_map.end());
++
++    auto index_source_edge = m_vertex_map[ {source_id, source_vertex} ];
++    auto index_target_edge = m_vertex_map[ {target_id, target_vertex} ];
++
++    auto vm_s = this->get_V(index_source_edge);
++    auto vm_t = this->get_V(index_target_edge);
++
++    boost::tie(e, inserted) =
++        boost::add_edge(vm_s, vm_t, this->graph);
++
++    ++m_num_edges;
++    this->graph[e].id = m_num_edges;
++}
++
++template < class G, typename T_V, typename T_E >
++void
++Pgr_lineGraph< G, T_V, T_E >::create_virtual_vertices() {
++    V_i vertexIt, vertexEnd;
++    boost::tie(vertexIt, vertexEnd) = boost::vertices(this->graph);
++    for (;vertexIt != vertexEnd; vertexIt++) {
++        auto vertex = this->graph[*vertexIt];
++        if (!m_vertex_map.count( {vertex.source, -1} )) {
++            create_virtual_vertex(vertex.source);
++        }
++        if(!m_vertex_map.count( {vertex.target, -1} )) {
++            create_virtual_vertex(vertex.target);
++        }
++
++        pgassert(m_vertex_map.find( {vertex.source, -1} ) !=
++            m_vertex_map.end());
++        pgassert(m_vertex_map.find( {vertex.target, -1} ) !=
++                m_vertex_map.end());
++
++        create_virtual_edge(vertex.source, -1, vertex.vertex_id, vertex.source);
++        create_virtual_edge(vertex.vertex_id, vertex.source, vertex.target, -1);
++    }
++}
++#endif
++
++template < class G, typename T_V, typename T_E >
++std::vector < Line_vertex >
++Pgr_lineGraph< G, T_V, T_E >::extract_vertices() {
++    /*
++        m_vertex_map stores a unique id assigned to each vertex of Line Graph.
++
++        In case of a directed edge, either 1 or 2 vertices are to be created in
++        the Line Graph for each of the edges.
++        Consider the following edge in directed graph:-
++            ID = 1 | source = 2 | target = 3 | cost = 10 | reverse_cost = 20
++        This creates 2 vertices in Line Graph:-
++            1. ID = 1 | source = 2 | target = 3 | cost = 10
++            2. ID = 1 | source = 3 | target = 2 | cost = 25
++        So, the values stored in m_vertex_map would be:-
++            1. {1, 2} = 1(Denoting the edge from 2 - > 3 of cost 10).
++            2. {1, 3} = 2(Denoting the edge from 3 - > 2 of cost 25).
++            where {key} = value in m_vertex_map.
++
++        In case of undirected edge, either 2 or 4 vertices are to be created in
++        the Line Graph for each of the edges.
++        Consider the following edge in an undirected graph:-
++            ID = 1 | source = 2 | target = 3 | cost = 10 | reverse_cost = 25
++        This creates the following 4 vertices in Line Graph:-
++            1. ID = 1 | source = 2 | target = 3 | cost = 10
++            2. ID = 1 | source = 3 | target = 2 | cost = 10
++            3. ID = 1 | source = 3 | target = 2 | cost = 25
++            4. ID = 1 | source = 2 | target = 3 | cost = 25
++        so, the values stored in m_vertex_map would be:-
++            1. {1, 2} = 1(Denoting the edge from 2 - > 3 of cost 10).
++            2. {-1, 3} = 2(Denoting the edge from 3 - > 2 of cost 10).
++            3. {1, 3} = 3(Deonting the edge from 3 - > 2 of cost 25).
++            4. {-1, 2} = 4(Denoting the edge from 2 - > 3 of cost 25).
++            where {key} = value in m_vertex_map.
++    */
++    if (m_edges.empty()) return std::vector< Line_vertex >();
++
++    std::vector< Line_vertex > vertices;
++
++#if 0
++    log << "\nEdges of original graph\n";
++#endif
++
++    for (const auto &it : m_edges) {
++        auto edge = it.second;
++        Line_vertex vertex(edge);
++
++#if 1
++        log << "ID: " << edge.id;
++        log << "| source: " << edge.source;
++        log << "| target: " << edge.target;
++        log << "| cost: " << edge.cost;
++        log << "| reverse_cost: " << edge.reverse_cost << "\n\n";
++#endif
++
++        if (edge.cost > 0) {
++            vertex.id = (++(this->m_num_vertices));
++            vertices.push_back(vertex);
++            m_vertex_map[ {edge.id, edge.source} ] = this->m_num_vertices;
++
++            if (this->m_gType == UNDIRECTED) {
++                vertex.id = (++(this->m_num_vertices));
++                std::swap(vertex.source, vertex.target);
++                vertices.push_back(vertex);
++                m_vertex_map[{-1*edge.id, edge.target}] = this->m_num_vertices;
++
++                std::swap(vertex.source, vertex.target);
++            }
++        }
++
++        if (edge.reverse_cost > 0) {
++            vertex.id = (++(this->m_num_vertices));
++            vertex.cost = edge.reverse_cost;
++            vertex.vertex_id *= -1;
++            std::swap(vertex.source, vertex.target);
++            vertices.push_back(vertex);
++            m_vertex_map[ {edge.id, edge.target} ] = this->m_num_vertices;
++
++            if (this->m_gType == UNDIRECTED) {
++                vertex.id = (++(this->m_num_vertices));
++                std::swap(vertex.source, vertex.target);
++                vertices.push_back(vertex);
++                m_vertex_map[{-1*edge.id, edge.source}] = this->m_num_vertices;
++            }
++        }
++    }
++#if 0
++    for (auto it: m_vertex_map) {
++        log << it.first.first << " | " << it.first.second << " | " << it.second << "\n";
++    }
++#endif
++    return vertices;
++}
++
++template < class G, typename T_V, typename T_E >
++template < typename T>
++void
++Pgr_lineGraph< G, T_V, T_E >::graph_add_edge(
++        int64_t _id,
++        const T &source,
++        const T &target,
++        int64_t source_in_edge,
++        int64_t source_out_edge) {
++
++    bool inserted;
++    typename Pgr_base_graph< G, T_V, T_E >::E e;
++
++    pgassert(m_vertex_map.find( {source, source_in_edge} ) !=
++        m_vertex_map.end());
++    pgassert(m_vertex_map.find( {target, source_out_edge} ) !=
++            m_vertex_map.end());
++
++    auto index_source_edge = m_vertex_map[ {source, source_in_edge} ];
++    auto index_target_edge = m_vertex_map[ {target, source_out_edge} ];
++
++#if 0
++    log << "\nsource_in_edge = " << source_in_edge << " | "
++        << "source_out_edge = " << source_out_edge << " | "
++        << "index_source_edge = " << index_source_edge << " | "
++        << "index_target_edge = " << index_target_edge << " | "
++        << "edge.source = " << source << " | "
++        << "edge.target = " << target << "\n";
++#endif
++
++    auto vm_s = this->get_V(index_source_edge);
++    auto vm_t = this->get_V(index_target_edge);
++
++    pgassert(this->vertices_map.find(index_source_edge) != this->vertices_map.end());
++    pgassert(this->vertices_map.find(index_target_edge) != this->vertices_map.end());
++
++    boost::tie(e, inserted) =
++        boost::add_edge(vm_s, vm_t, this->graph);
++
++    this->graph[e].id = _id;
++}
++
++template < class G, typename T_V, typename T_E >
++void
++Pgr_lineGraph< G, T_V, T_E >::create_edges(
++        const pgrouting::DirectedGraph& digraph) {
++
++    V_i vertexIt, vertexEnd;
++    EO_i e_outIt, e_outEnd;
++    EI_i e_inIt, e_inEnd;
++
++    /*
++    for (each vertex v in original graph) {
++       for( all incoming edges inn to vertex v) {
++              for( all outgoing edges outt from vertex v) {
++                     create an edge in the line graph(inn, outt);
++             }
++       }
++   }
++    */
++
++    for(boost::tie(vertexIt, vertexEnd) = boost::vertices(digraph.graph);
++            vertexIt != vertexEnd; vertexIt++) {
++        V vertex = *vertexIt;
++
++        for (boost::tie(e_outIt, e_outEnd) = boost::out_edges(vertex, digraph.graph);
++                e_outIt != e_outEnd; e_outIt++) {
++            for (boost::tie(e_inIt, e_inEnd) = boost::in_edges(vertex, digraph.graph);
++                    e_inIt != e_inEnd; e_inIt++) {
++
++#if 0
++                log << "\n";
++                log << digraph.graph[*inIt].id << " | " << digraph[digraph.source(*inIt)].id << " | " << digraph[digraph.target(*inIt)].id << " | " << digraph.graph[*inIt].cost << "\n";
++                log << digraph.graph[*outIt].id << " | " << digraph[digraph.source(*outIt)].id << " | " << digraph[digraph.target(*outIt)].id << " | " << digraph.graph[*outIt].cost << "\n\n";
++#endif
++
++                /*
++                Prevent self-edges from being created in the Line Graph
++                */
++                if (labs(digraph.graph[*e_inIt].id) == labs(digraph.graph[*e_outIt].id))
++                    continue;
++
++                auto source_in_edge = digraph.source(*e_inIt);
++
++#if 0
++                log << "source = " << digraph[source_in_edge] << " | mid = " << digraph[vertex] << "\n\n\n";
++#endif
++
++                ++m_num_edges;
++
++                graph_add_edge(
++                    m_num_edges,
++                    (digraph.graph[*e_inIt]).id,
++                    (digraph.graph[*e_outIt]).id,
++                    digraph[source_in_edge].id,
++                    digraph[vertex].id
++                );
++            }
++        }
++    }
++}
++
++template < class G, typename T_V, typename T_E >
++ void
++ Pgr_lineGraph< G, T_V, T_E >::add_vertices(
++         std::vector< T_V > vertices) {
++
++     for (const auto vertex : vertices) {
++         pgassert(this->vertices_map.find(vertex.id) == this->vertices_map.end());
++
++         auto v =  add_vertex(this->graph);
++         this->vertices_map[vertex.id] = v;
++         this->graph[v].cp_members(vertex);
++
++         pgassert(boost::num_vertices(this->graph) == this->num_vertices());
++     }
++     return;
++ }
++
++}  // namespace graph
++}  // namespace pgrouting
++
++#endif  // INCLUDE_COMPONENTS_PGR_LINEGRAPH_HPP_
+diff --git a/sql/dijkstraTRSP/CMakeLists.txt b/sql/dijkstraTRSP/CMakeLists.txt
+new file mode 100644
+index 000000000..5b0fc048c
+--- /dev/null
++++ b/sql/dijkstraTRSP/CMakeLists.txt
+@@ -0,0 +1,13 @@
++
++SET(LOCAL_FILES
++    dijkstraTRSP.sql
++    )
++
++# Do not modify bellow this line
++
++foreach (f ${LOCAL_FILES})
++    configure_file(${f} ${f})
++    list(APPEND PACKAGE_SQL_FILES  ${CMAKE_CURRENT_BINARY_DIR}/${f})
++endforeach()
++
++set(PgRouting_SQL_FILES ${PgRouting_SQL_FILES} ${PACKAGE_SQL_FILES} PARENT_SCOPE)
+diff --git a/sql/dijkstraTRSP/dijkstraTRSP.sql b/sql/dijkstraTRSP/dijkstraTRSP.sql
+new file mode 100644
+index 000000000..02f04c834
+--- /dev/null
++++ b/sql/dijkstraTRSP/dijkstraTRSP.sql
+@@ -0,0 +1,47 @@
++/*PGR-GNU*****************************************************************
++File: dijkstraTRSP.sql
++
++Generated with Template by:
++Copyright (c) 2016 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++CREATE OR REPLACE FUNCTION pgr_dijkstraTRSP(
++    TEXT,
++    TEXT,
++    BIGINT,
++    BIGINT,
++    directed BOOLEAN DEFAULT true,
++    only_cost BOOLEAN DEFAULT false,
++    strict BOOLEAN DEFAULT true, 
++    OUT seq INTEGER,
++    OUT path_seq INTEGER,
++    OUT node BIGINT,
++    OUT edge BIGINT,
++    OUT cost FLOAT,
++    OUT agg_cost FLOAT)
++
++RETURNS SETOF RECORD AS
++'$libdir/${PGROUTING_LIBRARY_NAME}', 'dijkstraTRSP'
++LANGUAGE c IMMUTABLE STRICT;
+diff --git a/sql/lineGraph/CMakeLists.txt b/sql/lineGraph/CMakeLists.txt
+new file mode 100644
+index 000000000..0df7925ca
+--- /dev/null
++++ b/sql/lineGraph/CMakeLists.txt
+@@ -0,0 +1,13 @@
++
++SET(LOCAL_FILES
++    lineGraph.sql
++    )
++
++# Do not modify bellow this line
++
++foreach (f ${LOCAL_FILES})
++    configure_file(${f} ${f})
++    list(APPEND PACKAGE_SQL_FILES  ${CMAKE_CURRENT_BINARY_DIR}/${f})
++endforeach()
++
++set(PgRouting_SQL_FILES ${PgRouting_SQL_FILES} ${PACKAGE_SQL_FILES} PARENT_SCOPE)
+diff --git a/sql/lineGraph/lineGraph.sql b/sql/lineGraph/lineGraph.sql
+new file mode 100644
+index 000000000..9f40d21fd
+--- /dev/null
++++ b/sql/lineGraph/lineGraph.sql
+@@ -0,0 +1,41 @@
++/*PGR-GNU*****************************************************************
++File: lineGraph.sql
++
++Generated with Template by:
++Copyright (c) 2016 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++CREATE OR REPLACE FUNCTION pgr_lineGraph(
++    TEXT, -- edges_sql
++    directed BOOLEAN DEFAULT true,
++    OUT seq INTEGER,
++    OUT source BIGINT,
++    OUT target BIGINT,
++    OUT cost FLOAT,
++    OUT reverse_cost FLOAT)
++
++RETURNS SETOF RECORD AS
++'$libdir/${PGROUTING_LIBRARY_NAME}', 'lineGraph'
++LANGUAGE c IMMUTABLE STRICT;
+diff --git a/src/common/src/CMakeLists.txt b/src/common/src/CMakeLists.txt
+index dbcbf0e87..a4f2d1c1d 100644
+--- a/src/common/src/CMakeLists.txt
++++ b/src/common/src/CMakeLists.txt
+@@ -1,7 +1,7 @@
+-ADD_LIBRARY(common OBJECT 
++ADD_LIBRARY(common OBJECT
+     postgres_connection.c
+     e_report.c
+-    #restrictions_input.c
++    restrict_input.c
+     basePath_SSEC.cpp
+ 
+     points_input.c
+@@ -11,7 +11,7 @@ ADD_LIBRARY(common OBJECT
+     orders_input.c
+     orders_input.c
+     vehicles_input.c
+-    
++
+     coordinates_input.c
+     arrays_input.c
+ 
+diff --git a/src/common/src/get_check_data.c b/src/common/src/get_check_data.c
+index 556880023..d49d6a0fe 100644
+--- a/src/common/src/get_check_data.c
++++ b/src/common/src/get_check_data.c
+@@ -86,6 +86,9 @@ void pgr_fetch_column_info(
+                 case CHAR1:
+                     pgr_check_char_type(info[i]);
+                     break;
++                case ANY_INTEGER_ARRAY:
++                    pgr_check_any_integerarray_type(info[i]);
++                    break;
+                 default:
+                     elog(ERROR, "Unknown type of column %s", info[i].name);
+             }
+@@ -119,6 +122,17 @@ pgr_check_any_integer_type(Column_info_t info) {
+     }
+ }
+ 
++void
++pgr_check_any_integerarray_type(Column_info_t info) {
++    if (!(info.type == INT2ARRAYOID
++                || info.type == INT4ARRAYOID
++                || info.type == 1016)) {
++        elog(ERROR,
++                "Unexpected Column '%s' type. Expected ANY-INTEGER-ARRAY",
++                info.name);
++    }
++}
++
+ void pgr_check_any_numerical_type(Column_info_t info) {
+     if (!(info.type == INT2OID
+                 || info.type == INT4OID
+diff --git a/src/common/src/restrict_input.c b/src/common/src/restrict_input.c
+new file mode 100644
+index 000000000..2012a3f41
+--- /dev/null
++++ b/src/common/src/restrict_input.c
+@@ -0,0 +1,173 @@
++/*PGR-GNU*****************************************************************
++File: restrict_input.c
++
++Copyright (c) 2017 Celia Virginia Vergara Castillo
++vicky_vergara@hotmail.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++#include "c_common/restrict_input.h"
++
++#include "c_types/column_info_t.h"
++
++#include "c_common/debug_macro.h"
++#include "c_common/time_msg.h"
++#include "c_common/get_check_data.h"
++
++#if 1
++
++static
++void fetch_restriction(
++        HeapTuple *tuple,
++        TupleDesc *tupdesc,
++        Column_info_t info[4],
++        Restrict_t *restriction) {
++    restriction->id = pgr_SPI_getBigInt(tuple, tupdesc, info[0]);
++    restriction->cost = pgr_SPI_getFloat8(tuple, tupdesc,  info[1]);
++    char *str = DatumGetCString(
++            SPI_getvalue(*tuple, *tupdesc, info[2].colNumber));
++
++// TODO(someone) because its text, no guarantee the text read is correct
++// move this code to c++ to tokenize the integers.
++    int i = 0;
++    for (i = 0; i < MAX_RULE_LENGTH; ++i) restriction->restricted_edges[i] = -1;
++    str[0] = ',';
++    if (str != NULL) {
++        char *token = NULL;
++        int i = 0;
++
++        token = (char *)strtok(str, " ,");
++
++        while (token != NULL && i < MAX_RULE_LENGTH) {
++            restriction->restricted_edges[i] = atoi(token);
++            i++;
++            token = (char *)strtok(NULL, " ,");
++        }
++    }
++}
++
++#endif
++
++
++void
++pgr_get_restriction_data(
++        char *restrictions_sql,
++        Restrict_t **restrictions,
++        size_t *total_restrictions) {
++    const int tuple_limit = 1000000;
++    clock_t start_t = clock();
++
++    PGR_DBG("pgr_get_restriction_data");
++    PGR_DBG("%s", restrictions_sql);
++    Column_info_t info[3];
++
++    int i;
++    for (i = 0; i < 3; ++i) {
++        info[i].colNumber = -1;
++        info[i].type = 0;
++        info[i].strict = true;
++        info[i].eType = ANY_INTEGER;
++    }
++    info[0].name = strdup("id");
++    info[1].name = strdup("cost");
++    info[2].name = strdup("restricted_edges");
++
++    info[1].eType = ANY_NUMERICAL;
++    info[2].eType = ANY_INTEGER_ARRAY;
++
++#if 0
++    // experiment starts
++
++    size_t total_tuples = (*total_restrictions) ;
++
++    (*restrictions) = (Restrict_t *)palloc0(sizeof(Restrict_t));
++
++    (*restrictions)[0].id = 1;
++    (*restrictions)[0].cost = -1;
++    (*restrictions)[0].restricted_edges[0] = 4;
++    (*restrictions)[0].restricted_edges[1] = 7;
++
++    // experiment ends
++#endif
++
++#if 1
++    size_t ntuples;
++    size_t total_tuples;
++
++    void *SPIplan;
++    SPIplan = pgr_SPI_prepare(restrictions_sql);
++    Portal SPIportal;
++    SPIportal = pgr_SPI_cursor_open(SPIplan);
++
++    bool moredata = TRUE;
++    (*total_restrictions) = total_tuples = 0;
++
++
++    while (moredata == TRUE) {
++        SPI_cursor_fetch(SPIportal, TRUE, tuple_limit);
++        if (total_tuples == 0) {
++            pgr_fetch_column_info(info, 3);
++        }
++        ntuples = SPI_processed;
++        total_tuples += ntuples;
++        PGR_DBG("SPI_processed %ld", ntuples);
++        if (ntuples > 0) {
++            if ((*restrictions) == NULL)
++                (*restrictions) = (Restrict_t *)palloc0(
++                        total_tuples * sizeof(Restrict_t));
++            else
++                (*restrictions) = (Restrict_t *)repalloc(
++                        (*restrictions),
++                        total_tuples * sizeof(Restrict_t));
++
++            if ((*restrictions) == NULL) {
++                elog(ERROR, "Out of memory");
++            }
++
++            size_t t;
++            SPITupleTable *tuptable = SPI_tuptable;
++            TupleDesc tupdesc = SPI_tuptable->tupdesc;
++            PGR_DBG("processing %ld", ntuples);
++            for (t = 0; t < ntuples; t++) {
++                HeapTuple tuple = tuptable->vals[t];
++                fetch_restriction(&tuple, &tupdesc, info,
++                        &(*restrictions)[total_tuples - ntuples + t]);
++            }
++            SPI_freetuptable(tuptable);
++        } else {
++            moredata = FALSE;
++        }
++    }
++
++    SPI_cursor_close(SPIportal);
++
++    if (total_tuples == 0) {
++        (*total_restrictions) = 0;
++        PGR_DBG("NO restrictions");
++        return;
++    }
++
++    (*total_restrictions) = total_tuples;
++#endif
++    PGR_DBG("Finish reading %ld data, %ld",
++            total_tuples,
++            (*total_restrictions));
++    clock_t end_t = clock();
++    time_msg(" reading Restrictions", start_t, end_t);
++}
+diff --git a/src/dijkstraTRSP/src/CMakeLists.txt b/src/dijkstraTRSP/src/CMakeLists.txt
+new file mode 100644
+index 000000000..e2a3b4f1a
+--- /dev/null
++++ b/src/dijkstraTRSP/src/CMakeLists.txt
+@@ -0,0 +1,5 @@
++ADD_LIBRARY(dijkstraTRSP OBJECT
++    dijkstraTRSP.c
++    dijkstraTRSP_driver.cpp
++    restriction.cpp
++    )
+diff --git a/src/dijkstraTRSP/src/dijkstraTRSP.c b/src/dijkstraTRSP/src/dijkstraTRSP.c
+new file mode 100644
+index 000000000..5442b5d9b
+--- /dev/null
++++ b/src/dijkstraTRSP/src/dijkstraTRSP.c
+@@ -0,0 +1,286 @@
++/*PGR-GNU*****************************************************************
++File: dijkstraTRSP.c
++
++Generated with Template by:
++Copyright (c) 2015 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307.com
++
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++/** @file dijkstraTRSP.c
++ * @brief Conecting code with postgres.
++ *
++ * This file is fully documented for understanding
++ *  how the postgres connectinon works
++ *
++ * TODO Remove unnecessary comments before submiting the function.
++ * some comments are in form of PGR_DBG message
++ */
++
++/**
++ *  postgres_connection.h
++ *
++ *  - should allways be first in the C code
++ */
++#include "c_common/postgres_connection.h"
++
++
++/* for macro PGR_DBG */
++#include "c_common/debug_macro.h"
++/* for pgr_global_report */
++#include "c_common/e_report.h"
++/* for time_msg & clock */
++#include "c_common/time_msg.h"
++/* for functions to get edges informtion */
++#include "c_common/edges_input.h"
++#include "c_common/restrict_input.h"
++
++#include "drivers/dijkstraTRSP/dijkstraTRSP_driver.h"  // the link to the C++ code of the function
++
++PGDLLEXPORT Datum dijkstraTRSP(PG_FUNCTION_ARGS);
++PG_FUNCTION_INFO_V1(dijkstraTRSP);
++
++
++/******************************************************************************/
++/*                          MODIFY AS NEEDED                                  */
++static
++void
++process(
++        char* edges_sql,
++        char *restrictions_sql,
++        int64_t start_vid,
++        int64_t end_vid,
++        bool directed,
++        bool only_cost,
++        bool strict,
++        General_path_element_t **result_tuples,
++        size_t *result_count) {
++    pgr_SPI_connect();
++    /*
++     *  https://www.postgresql.org/docs/current/static/spi-spi-connect.html
++     */
++    (*result_tuples) = NULL;
++    (*result_count) = 0;
++    PGR_DBG("\n\n\n\n\n\nEdge query: %s\n", edges_sql);
++    PGR_DBG("Restrictions query: %s\n", restrictions_sql);
++    PGR_DBG("source: %lu | destination: %lu\n\n", start_vid, end_vid);
++
++    PGR_DBG("Load data");
++    pgr_edge_t *edges = NULL;
++    size_t total_edges = 0;
++
++    if (start_vid == end_vid) {
++        /*
++         * https://www.postgresql.org/docs/current/static/spi-spi-finish.html
++         */
++        pgr_SPI_finish();
++        return;
++    }
++
++    pgr_get_edges(edges_sql, &edges, &total_edges);
++    PGR_DBG("Total %ld edges in query:", total_edges);
++
++    PGR_DBG("Load restrictions");
++    Restrict_t *restrictions = NULL;
++    size_t total_restrictions = 0;
++
++    pgr_get_restriction_data(restrictions_sql, &restrictions,
++        &total_restrictions);
++
++#if 1
++    size_t i = 0;
++    while(i < total_restrictions) {
++        PGR_DBG("id: %ld cost: %lf", restrictions[i].id, restrictions[i].cost);
++        int j = 0;
++        while(restrictions[i].restricted_edges[j] != -1) {
++            PGR_DBG("%ld ", restrictions[i].restricted_edges[j]);
++            j++;
++        }
++        PGR_DBG("\n");
++        i++;
++    }
++#endif
++
++    if (total_edges == 0) {
++        PGR_DBG("No edges found");
++        pgr_SPI_finish();
++        return;
++    }
++
++    PGR_DBG("Starting processing");
++    clock_t start_t = clock();
++    char *log_msg = NULL;
++    char *notice_msg = NULL;
++    char *err_msg = NULL;
++    do_pgr_dijkstraTRSP(
++            edges,
++            total_edges,
++            restrictions,
++            total_restrictions,
++            start_vid,
++            end_vid,
++            directed,
++            only_cost,
++            strict,
++            result_tuples,
++            result_count,
++            &log_msg,
++            &notice_msg,
++            &err_msg);
++
++    time_msg(" processing pgr_dijkstraTRSP", start_t, clock());
++    PGR_DBG("Returning %ld tuples", *result_count);
++
++    if (err_msg) {
++        if (*result_tuples) pfree(*result_tuples);
++    }
++    pgr_global_report(log_msg, notice_msg, err_msg);
++    if (edges) pfree(edges);
++    if (log_msg) pfree(log_msg);
++    if (notice_msg) pfree(notice_msg);
++    if (err_msg) pfree(err_msg);
++    if (restrictions) pfree(restrictions);
++    pgr_SPI_finish();
++}
++/*                                                                            */
++/******************************************************************************/
++
++PGDLLEXPORT Datum dijkstraTRSP(PG_FUNCTION_ARGS) {
++    FuncCallContext     *funcctx;
++    TupleDesc           tuple_desc;
++
++    /**************************************************************************/
++    /*                          MODIFY AS NEEDED                              */
++    /*                                                                        */
++    General_path_element_t  *result_tuples = NULL;
++    size_t result_count = 0;
++    /*                                                                        */
++    /**************************************************************************/
++
++    if (SRF_IS_FIRSTCALL()) {
++        MemoryContext   oldcontext;
++        funcctx = SRF_FIRSTCALL_INIT();
++        oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
++
++
++        /**********************************************************************/
++        /*                          MODIFY AS NEEDED                          */
++        /*
++           TEXT,
++    TEXT,
++    BIGINT,
++    BIGINT,
++    directed BOOLEAN DEFAULT true,
++    only_cost BOOLEAN DEFAULT false,
++    strict BOOLEAN DEFAULT false
++         **********************************************************************/
++
++
++        PGR_DBG("Calling process");
++        process(
++                text_to_cstring(PG_GETARG_TEXT_P(0)),
++                text_to_cstring(PG_GETARG_TEXT_P(1)),
++                PG_GETARG_INT64(2),
++                PG_GETARG_INT64(3),
++                PG_GETARG_BOOL(4),
++                PG_GETARG_BOOL(5),
++                PG_GETARG_BOOL(6),
++                &result_tuples,
++                &result_count);
++
++
++        /*                                                                    */
++        /**********************************************************************/
++
++#if PGSQL_VERSION > 94
++        funcctx->max_calls = result_count;
++#else
++        funcctx->max_calls = (uint32_t)result_count;
++#endif
++        funcctx->user_fctx = result_tuples;
++        if (get_call_result_type(fcinfo, NULL, &tuple_desc)
++                != TYPEFUNC_COMPOSITE) {
++            ereport(ERROR,
++                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
++                     errmsg("function returning record called in context "
++                         "that cannot accept type record")));
++        }
++
++        funcctx->tuple_desc = tuple_desc;
++        MemoryContextSwitchTo(oldcontext);
++    }
++
++    funcctx = SRF_PERCALL_SETUP();
++    tuple_desc = funcctx->tuple_desc;
++    result_tuples = (General_path_element_t*) funcctx->user_fctx;
++
++    if (funcctx->call_cntr < funcctx->max_calls) {
++        HeapTuple    tuple;
++        Datum        result;
++        Datum        *values;
++        bool*        nulls;
++
++        /**********************************************************************/
++        /*                          MODIFY AS NEEDED                          */
++        /*
++               OUT seq INTEGER,
++    OUT path_seq INTEGER,
++    OUT node BIGINT,
++    OUT edge BIGINT,
++    OUT cost FLOAT,
++    OUT agg_cost FLOAT
++         ***********************************************************************/
++
++        values = palloc(6 * sizeof(Datum));
++        nulls = palloc(6 * sizeof(bool));
++
++
++        size_t i;
++        for (i = 0; i < 6; ++i) {
++            nulls[i] = false;
++        }
++
++        // postgres starts counting from 1
++        values[0] = Int32GetDatum(funcctx->call_cntr + 1);
++        values[1] = Int32GetDatum(result_tuples[funcctx->call_cntr].seq);
++        values[2] = Int64GetDatum(result_tuples[funcctx->call_cntr].node);
++        values[3] = Int64GetDatum(result_tuples[funcctx->call_cntr].edge);
++        values[4] = Float8GetDatum(result_tuples[funcctx->call_cntr].cost);
++        values[5] = Float8GetDatum(result_tuples[funcctx->call_cntr].agg_cost);
++        /**********************************************************************/
++
++        tuple = heap_form_tuple(tuple_desc, values, nulls);
++        result = HeapTupleGetDatum(tuple);
++        SRF_RETURN_NEXT(funcctx, result);
++    } else {
++        /**********************************************************************/
++        /*                          MODIFY AS NEEDED                          */
++
++        PGR_DBG("Clean up code");
++
++        /**********************************************************************/
++
++        SRF_RETURN_DONE(funcctx);
++    }
++}
+diff --git a/src/dijkstraTRSP/src/dijkstraTRSP_driver.cpp b/src/dijkstraTRSP/src/dijkstraTRSP_driver.cpp
+new file mode 100644
+index 000000000..a307264f2
+--- /dev/null
++++ b/src/dijkstraTRSP/src/dijkstraTRSP_driver.cpp
+@@ -0,0 +1,186 @@
++/*PGR-GNU*****************************************************************
++File: dijkstraTRSP_driver.cpp
++
++Generated with Template by:
++Copyright (c) 2017 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++#include "drivers/dijkstraTRSP/dijkstraTRSP_driver.h"
++
++#include <sstream>
++#include <deque>
++#include <vector>
++
++#include "dijkstraTRSP/pgr_dijkstraTRSP.hpp"
++
++#include "cpp_common/pgr_alloc.hpp"
++#include "cpp_common/pgr_assert.h"
++
++#if 1
++template < class G >
++static
++Path
++pgr_dijkstraTRSP(
++        G &graph,
++        const std::vector< Restriction >& restrictions_array,
++        const std::vector< pgr_edge_t > edges,
++        int64_t source,
++        int64_t target,
++        std::string& log,
++        bool only_cost = false,
++        bool strict = false) {
++
++    Pgr_dijkstraTRSP< G > fn_TRSP;
++    Path path = fn_TRSP.dijkstraTRSP(graph,
++                    restrictions_array,
++                    edges,
++                    source,
++                    target,
++                    only_cost,
++                    strict);
++    log += fn_TRSP.log.str().c_str();
++    return path;
++}
++#endif
++
++void
++do_pgr_dijkstraTRSP(
++        pgr_edge_t *data_edges,
++        size_t total_edges,
++        Restrict_t *restrictions,
++        size_t total_restrictions,
++        int64_t start_vid,
++        int64_t end_vid,
++        bool directed,
++        bool only_cost,
++        bool strict,
++        General_path_element_t **return_tuples,
++        size_t *return_count,
++        char ** log_msg,
++        char ** notice_msg,
++        char ** err_msg) {
++    std::ostringstream log;
++    std::ostringstream err;
++    std::ostringstream notice;
++    try {
++        pgassert(!(*log_msg));
++        pgassert(!(*notice_msg));
++        pgassert(!(*err_msg));
++        pgassert(!(*return_tuples));
++        pgassert(*return_count == 0);
++        pgassert(total_edges != 0);
++
++        log << "\n----------------------------------------\nRestrictions data\n";
++        std::vector< Restriction > restrict_array;
++        for(size_t i = 0;i < total_restrictions;i++) {
++            restrict_array.push_back( Restriction(restrictions[i]) );
++        }
++        log << "\n-------------------------------------------------------------\nStart from here\n";
++        for (const auto &it: restrict_array) {
++            log << it << "\n";
++        }
++        log <<"-----------------------------------------------------------------\n";
++
++        graphType gType = directed? DIRECTED: UNDIRECTED;
++
++        std::vector < pgr_edge_t > edges(data_edges, data_edges + total_edges);
++
++        Path path;
++        std::string logstr;
++        if (directed) {
++            log << "Working with directed Graph\n";
++            pgrouting::DirectedGraph digraph(gType);
++            Pgr_dijkstraTRSP < pgrouting::DirectedGraph > fn_TRSP;
++            digraph.insert_edges(edges);
++            path = pgr_dijkstraTRSP(digraph,
++                    restrict_array,
++                    edges,
++                    start_vid,
++                    end_vid,
++                    logstr,
++                    only_cost,
++                    strict);
++        } else {
++            log << "Working with Undirected Graph\n";
++            pgrouting::UndirectedGraph undigraph(gType);
++            Pgr_dijkstraTRSP < pgrouting::UndirectedGraph > fn_TRSP;
++            undigraph.insert_edges(data_edges, total_edges);
++        #if 0
++            path = pgr_dijkstraTRSP(undigraph,
++                    restrict_array,
++                    edges,
++                    start_vid,
++                    end_vid,
++                    logstr,
++                    only_cost,
++                    strict);
++        #endif
++        }
++        log << logstr;
++        auto count = path.size();
++        log << "\nCount = " << count;
++
++        if (count == 0) {
++            (*return_tuples) = NULL;
++            (*return_count) = 0;
++            notice <<
++                "No paths found between start_vid and end_vid vertices";
++        } else {
++            (*return_tuples) = pgr_alloc(count, (*return_tuples));
++            size_t sequence = 0;
++            path.generate_postgres_data(return_tuples, sequence);
++            (*return_count) = sequence;
++        }
++
++        pgassert(*err_msg == NULL);
++        *log_msg = log.str().empty()?
++            *log_msg :
++            pgr_msg(log.str().c_str());
++        #if 0
++        *notice_msg = notice.str().empty()?
++            *notice_msg :
++            pgr_msg(notice.str().c_str());
++        #endif
++        pgassert(!log.str().empty());
++    } catch (AssertFailedException &except) {
++        (*return_tuples) = pgr_free(*return_tuples);
++        (*return_count) = 0;
++        err << except.what();
++        *err_msg = pgr_msg(err.str().c_str());
++        *log_msg = pgr_msg(log.str().c_str());
++    } catch (std::exception &except) {
++        (*return_tuples) = pgr_free(*return_tuples);
++        (*return_count) = 0;
++        err << except.what();
++        *err_msg = pgr_msg(err.str().c_str());
++        *log_msg = pgr_msg(log.str().c_str());
++    } catch(...) {
++        (*return_tuples) = pgr_free(*return_tuples);
++        (*return_count) = 0;
++        err << "Caught unknown exception!";
++        *err_msg = pgr_msg(err.str().c_str());
++        *log_msg = pgr_msg(log.str().c_str());
++    }
++}
+diff --git a/src/dijkstraTRSP/src/restriction.cpp b/src/dijkstraTRSP/src/restriction.cpp
+new file mode 100644
+index 000000000..811af857e
+--- /dev/null
++++ b/src/dijkstraTRSP/src/restriction.cpp
+@@ -0,0 +1,45 @@
++/*PGR-GNU*****************************************************************
++File: restriction.cpp
++Copyright (c) 2017 Celia Virginia Vergara Castillo
++Mail: vicky_vergara@hotmail.com
++------
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++********************************************************************PGR-GNU*/
++
++#include "dijkstraTRSP/restriction.h"
++
++#include <vector>
++#include <memory>
++#include <utility>
++#include <limits>
++
++Restriction::Restriction(const Restrict_t &r) :
++    m_id(r.id),
++    m_cost(r.cost) {
++        for(auto &it: r.restricted_edges) {
++            if (it == -1) break;
++            restrict_edges(it);
++        }
++    }
++
++std::ostream&
++operator << (std::ostream &log, const Restriction& r) {
++    log << "\n--------------------------------\nRestriction\n";
++    log << "ID: " << r.id() << "\nRestricion edge sequence: ";
++    for (const auto &v : r.restrict_edges()) {
++        log << v <<" ";
++    }
++    log << "\n";
++    log << "Cost: " << r.cost() << "\n";
++    return log;
++}
+diff --git a/src/dijkstraTRSP/test/custom.result b/src/dijkstraTRSP/test/custom.result
+new file mode 100644
+index 000000000..ece264a35
+--- /dev/null
++++ b/src/dijkstraTRSP/test/custom.result
+@@ -0,0 +1,25 @@
++BEGIN;
++BEGIN
++SET client_min_messages TO NOTICE;
++SET
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 8
++);
++ seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 8,
++    FALSE
++);
++ seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++ROLLBACK;
++ROLLBACK
+diff --git a/src/dijkstraTRSP/test/custom.test.sql b/src/dijkstraTRSP/test/custom.test.sql
+new file mode 100644
+index 000000000..6184e9561
+--- /dev/null
++++ b/src/dijkstraTRSP/test/custom.test.sql
+@@ -0,0 +1,12 @@
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 8
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 8,
++    FALSE
++);
+diff --git a/src/dijkstraTRSP/test/doc-dijkstraTRSP.result b/src/dijkstraTRSP/test/doc-dijkstraTRSP.result
+new file mode 100644
+index 000000000..1f9b68c94
+--- /dev/null
++++ b/src/dijkstraTRSP/test/doc-dijkstraTRSP.result
+@@ -0,0 +1,36 @@
++BEGIN;
++BEGIN
++SET client_min_messages TO NOTICE;
++SET
++-- q1
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3
++);
++ seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++   1 |        1 |    2 |    4 |    1 |        0
++   2 |        2 |    5 |    8 |    1 |        1
++   3 |        3 |    6 |    9 |    1 |        2
++   4 |        4 |    9 |   16 |    1 |        3
++   5 |        5 |    4 |    3 |    1 |        4
++   6 |        6 |    3 |   -1 |    0 |        5
++(6 rows)
++
++-- q2
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3,
++    FALSE
++);
++ seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++   1 |        1 |    2 |    2 |    1 |        0
++   2 |        2 |    3 |   -1 |    0 |        1
++(2 rows)
++
++-- q3
++ROLLBACK;
++ROLLBACK
+diff --git a/src/dijkstraTRSP/test/doc-dijkstraTRSP.test.sql b/src/dijkstraTRSP/test/doc-dijkstraTRSP.test.sql
+new file mode 100644
+index 000000000..a006a6fb2
+--- /dev/null
++++ b/src/dijkstraTRSP/test/doc-dijkstraTRSP.test.sql
+@@ -0,0 +1,16 @@
++
++\echo -- q1
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3
++);
++
++\echo -- q2
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3,
++    FALSE
++);
++\echo -- q3
+diff --git a/src/dijkstraTRSP/test/pgtap/custom.sql b/src/dijkstraTRSP/test/pgtap/custom.sql
+new file mode 100644
+index 000000000..50c824b8b
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap/custom.sql
+@@ -0,0 +1,163 @@
++\i setup.sql
++
++SELECT plan(7);
++
++SET client_min_messages TO WARNING;
++
++UPDATE edge_table SET cost = cost + 0.001 * id * id, reverse_cost = reverse_cost + 0.001 * id * id;
++
++SELECT todo_start();
++
++
++PREPARE q1 AS
++SELECT seq,
++       edge
++FROM pgr_dijkstraTRSP('SELECT id, source, target, cost, reverse_cost
++FROM edge_table', 'SELECT * FROM restrict WHERE id in (1)', 2, 8);
++
++PREPARE q2 AS
++SELECT seq, edge FROM ( VALUES
++	(1, 4),
++	(2, 8),
++	(3, 11),
++	(4, 12),
++	(5, 10),
++	(6, 7),
++	(7, -1) )
++AS t(seq, edge);
++
++SELECT set_eq('q1', 'q2', 'Testing from source 2 to target 8 with restriction on edges as follows 4 -> 7');
++
++
++
++PREPARE q3 AS
++SELECT seq,
++       edge
++FROM pgr_dijkstraTRSP('SELECT id, source, target, cost, reverse_cost
++FROM edge_table', 'SELECT * FROM restrict WHERE id in (2)', 8, 11);
++
++PREPARE q4 AS
++SELECT seq, edge FROM ( VALUES
++	(1, 7),
++	(2, 10),
++	(3, 12),
++	(4, -1) )
++AS t(seq, edge);
++
++SELECT set_eq('q3', 'q4', 'Testing from source 8 to target 11 with restriction on edges as follows 7 -> 8 -> 11');
++
++
++
++PREPARE q5 AS
++SELECT seq,
++       edge
++FROM pgr_dijkstraTRSP('SELECT id, source, target, cost, reverse_cost
++FROM edge_table', 'SELECT * FROM restrict WHERE id in (2, 3)', 7, 3);
++
++PREPARE q6 AS
++SELECT seq, edge FROM ( VALUES
++	(1, 6),
++	(2, 7),
++	(3, 8),
++	(4, 9),
++	(5, 16),
++	(6, 3),
++	(7, -1) )
++AS t(seq, edge);
++
++SELECT set_eq('q5', 'q6', 'Testing from source 7 to target 3 with restriction on edges as follows 7 -> 8 -> 11 and 7 -> 8 -> 5');
++
++
++
++PREPARE q7 AS
++SELECT seq,
++       edge
++FROM pgr_dijkstraTRSP('SELECT id, source, target, cost, reverse_cost
++FROM edge_table', 'SELECT * FROM restrict WHERE id in (4)', 7, 1);
++
++PREPARE q8 AS
++SELECT seq, edge FROM ( VALUES
++	(1, 6),
++	(2, 7),
++	(3, 8),
++	(4, 5),
++	(5, 2),
++	(6, 1),
++	(7, -1) )
++AS t(seq, edge);
++
++SELECT set_eq('q7', 'q8', 'Testing from source 7 to target 1 with restriction on edges as follows 7 -> 4');
++
++
++
++PREPARE q9 AS
++SELECT seq,
++       edge
++FROM pgr_dijkstraTRSP('SELECT id, source, target, cost, reverse_cost
++FROM edge_table', 'SELECT * FROM restrict WHERE id in (4, 5)', 8, 4);
++
++PREPARE q10 AS
++SELECT seq, edge FROM ( VALUES
++	(1, 7),
++	(2, 10),
++	(3, 12),
++	(4, 13),
++	(5, 15),
++	(6, 16),
++	(7, -1) )
++AS t(seq, edge);
++
++SELECT set_eq('q9', 'q10', 'Testing from source 8 to target 4 with restriction on edges as follows 7 -> 8 and 7 -> 4');
++
++
++
++PREPARE q11 AS
++SELECT seq,
++       edge
++FROM pgr_dijkstraTRSP('SELECT id, source, target, cost, reverse_cost
++FROM edge_table', 'SELECT * FROM restrict WHERE id in (4, 5)', 7, 1);
++
++PREPARE q12 AS
++SELECT seq, edge FROM ( VALUES
++	(1, 6),
++	(2, 7),
++	(3, 10),
++	(4, 12),
++	(5, 13),
++	(6, 15),
++	(7, 9),
++	(8, 5),
++	(9, 2),
++	(10, 1),
++	(11, -1) )
++AS t(seq, edge);
++
++SELECT set_eq('q11', 'q12', 'Testing from source 7 to target 1 with restriction on edges as follows 7 -> 8 and 7 -> 4'); 
++
++
++
++PREPARE q13 AS
++SELECT seq,
++       edge
++FROM pgr_dijkstraTRSP('SELECT id, source, target, cost, reverse_cost
++FROM edge_table', 'SELECT * FROM restrict WHERE id in (6, 7)', 12, 7);
++
++PREPARE q14 AS
++SELECT seq, edge FROM ( VALUES
++	(1, 15),
++	(2, 9),
++	(3, 5),
++	(4, 2),
++	(5, 4),
++	(6, 7),
++	(7, 6),
++	(8, -1) )
++AS t(seq, edge);
++
++SELECT set_eq('q13', 'q14', 'Testing from source 12 to target 7 with restriction on edges as follows 9 -> 11 and 9 -> 8'); 
++
++
++SELECT todo_end();
++
++SELECT finish();
++ROLLBACK;
+diff --git a/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-compare-dijkstra.sql b/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-compare-dijkstra.sql
+new file mode 100644
+index 000000000..2ab3dda4e
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-compare-dijkstra.sql
+@@ -0,0 +1,75 @@
++\i setup.sql
++
++SELECT plan(1157);
++
++SET client_min_messages TO ERROR;
++
++UPDATE edge_table SET cost = cost + 0.001 * id * id, reverse_cost = reverse_cost + 0.001 * id * id;
++
++SELECT has_function('pgr_dijkstratrsp');
++
++CREATE or REPLACE FUNCTION dijkstratrsp_compare_dijkstra(cant INTEGER default 17)
++RETURNS SETOF TEXT AS
++$BODY$
++DECLARE
++inner_sql TEXT;
++restricted_sql TEXT;
++dijkstra_sql TEXT;
++dijkstratrsp_sql TEXT;
++BEGIN
++
++    FOR i IN 1.. cant LOOP
++        FOR j IN 1.. cant LOOP
++
++            -- DIRECTED
++            inner_sql := 'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7';
++            dijkstra_sql := 'SELECT * FROM pgr_dijkstra($$' || inner_sql || '$$, ' || i || ', ' || j
++                || ', true)';
++
++            restricted_sql := 'SELECT * FROM restrict WHERE id IN (1)';
++            dijkstratrsp_sql := 'SELECT * FROM pgr_dijkstratrsp($$' || inner_sql || '$$, $$' || restricted_sql || '$$, '|| i || ', ' || j
++                || ', true)';
++            RETURN query SELECT set_eq(dijkstratrsp_sql, dijkstra_sql, dijkstratrsp_sql);
++
++            -- UNDIRECTED
++            inner_sql := 'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7';
++            dijkstra_sql := 'SELECT * FROM pgr_dijkstra($$' || inner_sql || '$$, ' || i || ', ' || j
++                || ', false)';
++
++            restricted_sql := 'SELECT * FROM restrict WHERE id in (1)';
++            dijkstratrsp_sql := 'SELECT * FROM pgr_dijkstratrsp($$' || inner_sql || '$$, $$' || restricted_sql || '$$, '|| i || ', ' || j
++                || ', false)';
++            RETURN query SELECT set_eq(dijkstratrsp_sql, dijkstra_sql, dijkstratrsp_sql);
++
++	    -- ALL RESTRICTIONS DIRECTED
++            inner_sql := 'SELECT id, source, target, cost, reverse_cost FROM edge_table';
++            dijkstra_sql := 'SELECT * FROM pgr_dijkstra($$' || inner_sql || '$$, ' || i || ', ' || j
++                || ', true)';
++
++            restricted_sql := 'SELECT * FROM restrict';
++            dijkstratrsp_sql := 'SELECT * FROM pgr_dijkstratrsp($$' || inner_sql || '$$, $$' || restricted_sql || '$$, '|| i || ', ' || j
++                || ', true)';
++            RETURN query SELECT set_eq(dijkstratrsp_sql, dijkstra_sql, dijkstratrsp_sql);
++
++            -- ALL RESTRICTIONS UNDIRECTED
++            inner_sql := 'SELECT id, source, target, cost, reverse_cost FROM edge_table';
++            dijkstra_sql := 'SELECT * FROM pgr_dijkstra($$' || inner_sql || '$$, ' || i || ', ' || j
++                || ', false)';
++
++            restricted_sql := 'SELECT * FROM restrict';
++            dijkstratrsp_sql := 'SELECT * FROM pgr_dijkstratrsp($$' || inner_sql || '$$, $$' || restricted_sql || '$$, '|| i || ', ' || j
++                || ', false)';
++            RETURN query SELECT set_eq(dijkstratrsp_sql, dijkstra_sql, dijkstratrsp_sql);
++
++
++        END LOOP;
++    END LOOP;
++
++    RETURN;
++END
++$BODY$
++language plpgsql;
++SELECT * from dijkstratrsp_compare_dijkstra();
++
++SELECT * FROM finish();
++ROLLBACK;
+diff --git a/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-innerQuery.sql b/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-innerQuery.sql
+new file mode 100644
+index 000000000..3c0cfed04
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-innerQuery.sql
+@@ -0,0 +1,19 @@
++\i setup.sql
++
++SELECT plan(137);
++SET client_min_messages TO ERROR;
++
++
++SELECT has_function('pgr_dijkstratrsp',
++    ARRAY['text', 'text', 'bigint', 'bigint', 'boolean','boolean','boolean']);
++
++SELECT function_returns('pgr_dijkstratrsp',
++    ARRAY['text', 'text', 'bigint', 'bigint', 'boolean','boolean','boolean'],
++    'setof record');
++
++SELECT style_dijkstraTRSP('pgr_dijkstratrsp', ', $$SELECT * FROM restrict$$, 2, 3)');
++SELECT style_dijkstraTRSP('pgr_dijkstratrsp', ', $$SELECT * FROM restrict$$, 2, 3, true)');
++SELECT style_dijkstraTRSP('pgr_dijkstratrsp', ', $$SELECT * FROM restrict$$, 2, 3, false)');
++
++SELECT finish();
++ROLLBACK;
+diff --git a/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-typesCheck.sql b/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-typesCheck.sql
+new file mode 100644
+index 000000000..0c791a0bc
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap/dijkstraTRSP-typesCheck.sql
+@@ -0,0 +1,16 @@
++
++SELECT plan(4);
++
++SELECT has_function('pgr_dijkstratrsp');
++
++SELECT has_function('pgr_dijkstratrsp', ARRAY[ 'text', 'text', 'bigint', 'bigint', 'boolean', 'boolean', 'boolean' ]);
++
++SELECT function_returns('pgr_dijkstratrsp',
++    ARRAY[ 'text', 'text', 'bigint', 'bigint', 'boolean', 'boolean', 'boolean' ],
++    'setof record');
++
++-- testing column names
++SELECT bag_has(
++    $$SELECT  proargnames from pg_proc where proname = 'pgr_dijkstratrsp'$$,
++    $$SELECT  '{"","","","","directed","only_cost","strict","seq","path_seq","node","edge","cost","agg_cost"}'::TEXT[] $$
++);
+diff --git a/src/dijkstraTRSP/test/pgtap/empty_set_NO_default_strict.sql b/src/dijkstraTRSP/test/pgtap/empty_set_NO_default_strict.sql
+new file mode 100644
+index 000000000..e1475e79c
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap/empty_set_NO_default_strict.sql
+@@ -0,0 +1,258 @@
++\i setup.sql
++
++SELECT plan(20);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an existing starting vertex to a non-existing destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q1 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3,
++    strict := false
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q2 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3,
++    FALSE,
++    strict := false
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q3 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3,
++    strict := false
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q4 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3,
++    FALSE,
++    strict := false
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an non-existing starting vertex to an existing destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q5 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8,
++    strict := false
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q6 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8,
++    FALSE,
++    strict := false
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q7 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8,
++    strict := false
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q8 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8,
++    FALSE,
++    strict := false
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from a non-existing starting vertex to a non-existing destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q9 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17,
++    strict := false
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q10 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17,
++    FALSE,
++    strict := false
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q11 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17,
++    strict := false
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q12 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17,
++    FALSE,
++    strict := false
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an existing starting vertex to the same destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q13 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2,
++    strict := false
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q14 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2,
++    FALSE,
++    strict := false
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q15 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2,
++    strict := false
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q16 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2,
++    FALSE,
++    strict := false
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an existing starting vertex in one component to an existing destination in another component
++----------------------------------------------------------------------------------------------------------------
++-- in directed graph
++-- with restrictions
++PREPARE q17 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14,
++    strict := false
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q18 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14,
++    FALSE,
++    strict := false
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q19 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14,
++    strict := false
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q20 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14,
++    FALSE,
++    strict := false
++);
++
++----------------------------------------------------------------------------------------------------------------
++
++SELECT is_empty('q1');
++SELECT is_empty('q2');
++SELECT is_empty('q3');
++SELECT is_empty('q4');
++SELECT is_empty('q5');
++SELECT is_empty('q6');
++SELECT is_empty('q7');
++SELECT is_empty('q8');
++SELECT is_empty('q9');
++SELECT is_empty('q10');
++SELECT is_empty('q11');
++SELECT is_empty('q12');
++SELECT is_empty('q13');
++SELECT is_empty('q14');
++SELECT is_empty('q15');
++SELECT is_empty('q16');
++SELECT is_empty('q17');
++SELECT is_empty('q18');
++SELECT is_empty('q19');
++SELECT is_empty('q20');
++
++SELECT * FROM finish();
++ROLLBACK;
+diff --git a/src/dijkstraTRSP/test/pgtap/empty_set_default_strict.sql b/src/dijkstraTRSP/test/pgtap/empty_set_default_strict.sql
+new file mode 100644
+index 000000000..d0a2254d9
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap/empty_set_default_strict.sql
+@@ -0,0 +1,238 @@
++\i setup.sql
++
++SELECT plan(20);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an existing starting vertex to a non-existing destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q1 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q2 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3,
++    FALSE
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q3 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q4 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3,
++    FALSE
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an non-existing starting vertex to an existing destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q5 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q6 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8,
++    FALSE
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q7 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q8 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8,
++    FALSE
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from a non-existing starting vertex to a non-existing destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q9 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q10 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17,
++    FALSE
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q11 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q12 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17,
++    FALSE
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an existing starting vertex to the same destination
++----------------------------------------------------------------------------------------------------------------
++
++-- in directed graph
++-- with restrictions
++PREPARE q13 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q14 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2,
++    FALSE
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q15 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q16 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2,
++    FALSE
++);
++
++----------------------------------------------------------------------------------------------------------------
++-- testing from an existing starting vertex in one component to an existing destination in another component
++----------------------------------------------------------------------------------------------------------------
++-- in directed graph
++-- with restrictions
++PREPARE q17 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14
++);
++
++-- in undirected graph
++-- with restrictions
++PREPARE q18 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14,
++    FALSE
++);
++
++-- in directed graph
++-- without restrictions
++PREPARE q19 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14
++);
++
++-- in undirected graph
++-- without restrictions
++PREPARE q20 AS
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14,
++    FALSE
++);
++
++----------------------------------------------------------------------------------------------------------------
++
++SELECT is_empty('q1');
++SELECT is_empty('q2');
++SELECT is_empty('q3');
++SELECT is_empty('q4');
++SELECT is_empty('q5');
++SELECT is_empty('q6');
++SELECT is_empty('q7');
++SELECT is_empty('q8');
++SELECT is_empty('q9');
++SELECT is_empty('q10');
++SELECT is_empty('q11');
++SELECT is_empty('q12');
++SELECT is_empty('q13');
++SELECT is_empty('q14');
++SELECT is_empty('q15');
++SELECT is_empty('q16');
++SELECT is_empty('q17');
++SELECT is_empty('q18');
++SELECT is_empty('q19');
++SELECT is_empty('q20');
++
++SELECT * FROM finish();
++ROLLBACK;
+diff --git a/src/dijkstraTRSP/test/pgtap_design.result b/src/dijkstraTRSP/test/pgtap_design.result
+new file mode 100644
+index 000000000..4f122724a
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap_design.result
+@@ -0,0 +1,196 @@
++BEGIN;
++BEGIN
++SET client_min_messages TO NOTICE;
++SET
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14,
++    FALSE
++);
++seq | path_seq | node | edge | cost | agg_cost
++-----+----------+------+------+------+----------
++(0 rows)
++
++ROLLBACK;
++ROLLBACK
+diff --git a/src/dijkstraTRSP/test/pgtap_design.test.sql b/src/dijkstraTRSP/test/pgtap_design.test.sql
+new file mode 100644
+index 000000000..ec5dce294
+--- /dev/null
++++ b/src/dijkstraTRSP/test/pgtap_design.test.sql
+@@ -0,0 +1,129 @@
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 3,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 3,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    6, 8,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    6, 8,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    1, 17,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    1, 17,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 2,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id = 4 OR id = 7',
++    'SELECT * FROM restrict where id > 10',
++    2, 2,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict WHERE id IN (1)',
++    2, 14,
++    FALSE
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14
++);
++
++SELECT * FROM pgr_dijkstraTRSP(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table WHERE id IN (4, 7, 17)',
++    'SELECT * FROM restrict where id > 10',
++    2, 14,
++    FALSE
++);
+diff --git a/src/dijkstraTRSP/test/test.conf b/src/dijkstraTRSP/test/test.conf
+new file mode 100644
+index 000000000..8bcc0ecf6
+--- /dev/null
++++ b/src/dijkstraTRSP/test/test.conf
+@@ -0,0 +1,16 @@
++#!/usr/bin/perl -w
++
++%main::tests = (
++    'any' => {
++        'comment' => 'Dijkstra test for any versions.',
++        'data' => [ ],
++        'tests' => [qw(
++            )],
++        'documentation' => [qw(
++            doc-dijkstraTRSP
++            )]
++    },
++
++);
++
++1;
+diff --git a/src/lineGraph/src/CMakeLists.txt b/src/lineGraph/src/CMakeLists.txt
+new file mode 100644
+index 000000000..86869a9b2
+--- /dev/null
++++ b/src/lineGraph/src/CMakeLists.txt
+@@ -0,0 +1,4 @@
++ADD_LIBRARY(lineGraph OBJECT
++    lineGraph.c
++    lineGraph_driver.cpp
++    )
+diff --git a/src/lineGraph/src/lineGraph.c b/src/lineGraph/src/lineGraph.c
+new file mode 100644
+index 000000000..587657f15
+--- /dev/null
++++ b/src/lineGraph/src/lineGraph.c
+@@ -0,0 +1,224 @@
++/*PGR-GNU*****************************************************************
++File: lineGraph.c
++
++Generated with Template by:
++Copyright (c) 2015 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307.com
++
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++/** @file lineGraph.c
++ * @brief Conecting code with postgres.
++ *
++ * This file is fully documented for understanding
++ *  how the postgres connectinon works
++ *
++ * TODO Remove unnecessary comments before submiting the function.
++ * some comments are in form of PGR_DBG message
++ */
++
++/**
++ *  postgres_connection.h
++ *
++ *  - should allways be first in the C code
++ */
++#include "c_common/postgres_connection.h"
++
++
++/* for macro PGR_DBG */
++#include "c_common/debug_macro.h"
++/* for pgr_global_report */
++#include "c_common/e_report.h"
++/* for time_msg & clock */
++#include "c_common/time_msg.h"
++/* for functions to get edges informtion */
++#include "c_common/edges_input.h"
++
++#include "drivers/lineGraph/lineGraph_driver.h"  // the link to the C++ code of the function
++
++PGDLLEXPORT Datum lineGraph(PG_FUNCTION_ARGS);
++PG_FUNCTION_INFO_V1(lineGraph);
++
++
++/******************************************************************************/
++/*                          MODIFY AS NEEDED                                  */
++static
++void
++process(
++        char* edges_sql,
++        bool directed,
++        Line_graph_rt **result_tuples,
++        size_t *result_count) {
++    /*
++     *  https://www.postgresql.org/docs/current/static/spi-spi-connect.html
++     */
++    PGR_DBG("\nSQL QUERY: %s\n", edges_sql);
++    if (directed) PGR_DBG("\nDirectedGraph\n");
++    else PGR_DBG("\nUndirectedGraph\n");
++    pgr_SPI_connect();
++
++    (*result_tuples) = NULL;
++    (*result_count) = 0;
++
++    PGR_DBG("Load data");
++    pgr_edge_t *edges = NULL;
++    size_t total_edges = 0;
++
++    pgr_get_edges(edges_sql, &edges, &total_edges);
++    PGR_DBG("Total %ld edges in query:", total_edges);
++
++    if (total_edges == 0) {
++        PGR_DBG("No edges found");
++        pgr_SPI_finish();
++        return;
++    }
++
++    PGR_DBG("Starting processing");
++    clock_t start_t = clock();
++    char *log_msg = NULL;
++    char *notice_msg = NULL;
++    char *err_msg = NULL;
++    do_pgr_lineGraph(
++            edges,
++            total_edges,
++            directed,
++            result_tuples,
++            result_count,
++            &log_msg,
++            &notice_msg,
++            &err_msg);
++
++    time_msg(" processing pgr_lineGraph", start_t, clock());
++    PGR_DBG("Returning %ld tuples", *result_count);
++
++    if (err_msg) {
++        if (*result_tuples) pfree(*result_tuples);
++    }
++    pgr_global_report(log_msg, notice_msg, err_msg);
++
++    if (edges) pfree(edges);
++    if (log_msg) pfree(log_msg);
++    if (notice_msg) pfree(notice_msg);
++    if (err_msg) pfree(err_msg);
++
++    pgr_SPI_finish();
++}
++/*                                                                            */
++/******************************************************************************/
++
++PGDLLEXPORT Datum lineGraph(PG_FUNCTION_ARGS) {
++    FuncCallContext     *funcctx;
++    TupleDesc           tuple_desc;
++
++    /**************************************************************************/
++    /*                          MODIFY AS NEEDED                              */
++    /*                                                                        */
++    Line_graph_rt  *result_tuples = NULL;
++    size_t result_count = 0;
++    /*                                                                        */
++    /**************************************************************************/
++
++    if (SRF_IS_FIRSTCALL()) {
++        MemoryContext   oldcontext;
++        funcctx = SRF_FIRSTCALL_INIT();
++        oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
++
++
++        /**********************************************************************/
++        /*                          MODIFY AS NEEDED                          */
++        /*
++           TEXT,
++    directed BOOLEAN DEFAULT true,
++         **********************************************************************/
++
++
++        PGR_DBG("Calling process");
++        process(
++                text_to_cstring(PG_GETARG_TEXT_P(0)),
++                PG_GETARG_BOOL(1),
++                &result_tuples,
++                &result_count);
++
++
++        /*                                                                    */
++        /**********************************************************************/
++
++#if PGSQL_VERSION > 94
++        funcctx->max_calls = result_count;
++#else
++        funcctx->max_calls = (uint32_t)result_count;
++#endif
++        funcctx->user_fctx = result_tuples;
++        if (get_call_result_type(fcinfo, NULL, &tuple_desc)
++                != TYPEFUNC_COMPOSITE) {
++            ereport(ERROR,
++                    (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
++                     errmsg("function returning record called in context "
++                         "that cannot accept type record")));
++        }
++
++        funcctx->tuple_desc = tuple_desc;
++        MemoryContextSwitchTo(oldcontext);
++    }
++
++    funcctx = SRF_PERCALL_SETUP();
++    tuple_desc = funcctx->tuple_desc;
++    result_tuples = (Line_graph_rt*) funcctx->user_fctx;
++
++    if (funcctx->call_cntr < funcctx->max_calls) {
++        HeapTuple    tuple;
++        Datum        result;
++        Datum        *values;
++        bool*        nulls;
++
++        values = palloc(5 * sizeof(Datum));
++        nulls = palloc(5 * sizeof(bool));
++
++
++        size_t i;
++        for (i = 0; i < 5; ++i) {
++            nulls[i] = false;
++        }
++
++        // postgres starts counting from 1
++        values[0] = Int32GetDatum(funcctx->call_cntr + 1);
++        values[1] = Int64GetDatum(result_tuples[funcctx->call_cntr].source);
++        values[2] = Int64GetDatum(result_tuples[funcctx->call_cntr].target);
++        values[3] = Float8GetDatum(result_tuples[funcctx->call_cntr].cost);
++        values[4] = Float8GetDatum(result_tuples[funcctx->call_cntr].reverse_cost);
++
++        tuple = heap_form_tuple(tuple_desc, values, nulls);
++        result = HeapTupleGetDatum(tuple);
++        SRF_RETURN_NEXT(funcctx, result);
++    } else {
++        /**********************************************************************/
++        /*                          MODIFY AS NEEDED                          */
++
++        PGR_DBG("Clean up code");
++
++        /**********************************************************************/
++
++        SRF_RETURN_DONE(funcctx);
++    }
++}
+diff --git a/src/lineGraph/src/lineGraph_driver.cpp b/src/lineGraph/src/lineGraph_driver.cpp
+new file mode 100644
+index 000000000..211fdc337
+--- /dev/null
++++ b/src/lineGraph/src/lineGraph_driver.cpp
+@@ -0,0 +1,157 @@
++/*PGR-GNU*****************************************************************
++File: lineGraph_driver.cpp
++
++Generated with Template by:
++Copyright (c) 2015 pgRouting developers
++Mail: project@pgrouting.org
++
++Function's developer:
++Copyright (c) 2017 Vidhan Jain
++Mail: vidhanj1307.com
++
++------
++
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 2 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
++
++********************************************************************PGR-GNU*/
++
++#include "drivers/lineGraph/lineGraph_driver.h"
++
++#include <sstream>
++#include <deque>
++#include <vector>
++
++#include "dijkstra/pgr_dijkstra.hpp"
++
++#include "cpp_common/pgr_alloc.hpp"
++#include "cpp_common/pgr_assert.h"
++
++#include "lineGraph/pgr_lineGraph.hpp"
++
++void get_postgres_result(
++        std::vector< Line_graph_rt > edge_result,
++        Line_graph_rt **return_tuples,
++        size_t &sequence) {
++    (*return_tuples) = pgr_alloc(
++            (int)edge_result.size(),
++            (*return_tuples));
++
++    for (const auto &edge: edge_result) {
++        (*return_tuples)[sequence] = {edge.id, edge.source, edge.target, edge.cost, edge.reverse_cost};
++        sequence++;
++    }
++}
++
++void
++do_pgr_lineGraph(
++        pgr_edge_t  *data_edges,
++        size_t total_edges,
++        bool directed,
++        Line_graph_rt **return_tuples,
++        size_t *return_count,
++        char ** log_msg,
++        char ** notice_msg,
++        char ** err_msg) {
++    std::ostringstream log;
++    std::ostringstream err;
++    std::ostringstream notice;
++    try {
++        pgassert(!(*log_msg));
++        pgassert(!(*notice_msg));
++        pgassert(!(*err_msg));
++        pgassert(!(*return_tuples));
++        pgassert(*return_count == 0);
++        pgassert(total_edges != 0);
++
++        std::vector< Line_graph_rt > results;
++        graphType gType = directed?DIRECTED:UNDIRECTED;
++
++        pgrouting::DirectedGraph digraph(gType);
++        digraph.insert_edges(data_edges, total_edges);
++        if (!directed) {
++            for (size_t ind = 0; ind < total_edges; ind++) {
++                std::swap(data_edges[ind].source, data_edges[ind].target);
++                data_edges[ind].id *= -1;
++            }
++
++            digraph.insert_edges(data_edges, total_edges);
++
++            for (size_t ind = 0;ind < total_edges; ind++) {
++                std::swap(data_edges[ind].source, data_edges[ind].target);
++                data_edges[ind].id *= -1;
++            }
++        }
++
++        digraph.m_num_vertices = 1000;
++        log << digraph << "\n";
++
++        pgrouting::LinearDirectedGraph line(gType);
++        line.insert_vertices(data_edges, total_edges);
++        line.transform(digraph);
++
++        std::vector< Line_graph_rt > line_graph_edges;
++        if (directed) {
++            line_graph_edges = line.get_postgres_results_directed();
++        } else {
++            line_graph_edges = line.get_postgres_results_undirected();
++        }
++
++        auto count = line_graph_edges.size();
++
++        if (count == 0) {
++            (*return_tuples) = NULL;
++            (*return_count) = 0;
++            notice <<
++                "No paths found between start_vid and end_vid vertices";
++        } else {
++            size_t sequence = 0;
++
++            get_postgres_result(
++                line_graph_edges,
++                return_tuples,
++                sequence
++            );
++            (*return_count) = sequence;
++        }
++        log << line.log.str().c_str() << "\n\n\n";
++        log << line << "\n";
++
++        pgassert(*err_msg == NULL);
++        *log_msg = log.str().empty()?
++            *log_msg :
++            pgr_msg(log.str().c_str());
++        *notice_msg = notice.str().empty()?
++            *notice_msg :
++            pgr_msg(notice.str().c_str());
++    } catch (AssertFailedException &except) {
++        (*return_tuples) = pgr_free(*return_tuples);
++        (*return_count) = 0;
++        err << except.what();
++        *err_msg = pgr_msg(err.str().c_str());
++        *log_msg = pgr_msg(log.str().c_str());
++    } catch (std::exception &except) {
++        (*return_tuples) = pgr_free(*return_tuples);
++        (*return_count) = 0;
++        err << except.what();
++        *err_msg = pgr_msg(err.str().c_str());
++        *log_msg = pgr_msg(log.str().c_str());
++    } catch(...) {
++        (*return_tuples) = pgr_free(*return_tuples);
++        (*return_count) = 0;
++        err << "Caught unknown exception!";
++        *err_msg = pgr_msg(err.str().c_str());
++        *log_msg = pgr_msg(log.str().c_str());
++    }
++}
+diff --git a/src/lineGraph/test/doc-lineGraph.result b/src/lineGraph/test/doc-lineGraph.result
+new file mode 100644
+index 000000000..129bef92e
+--- /dev/null
++++ b/src/lineGraph/test/doc-lineGraph.result
+@@ -0,0 +1,220 @@
++BEGIN;
++BEGIN
++SET client_min_messages TO NOTICE;
++SET
++-- q1
++SELECT * FROM pgr_lineGraph(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table'
++);
++ seq | source | target | cost | reverse_cost
++-----+--------+--------+------+--------------
++    1 |    -16 |     -3 |    1 |           -1
++    2 |    -15 |     -9 |    1 |            1
++    3 |    -14 |    -10 |    1 |            1
++    4 |    -14 |     12 |    1 |           -1
++    5 |    -10 |     -7 |    1 |            1
++    6 |    -10 |     -4 |    1 |            1
++    7 |    -10 |      8 |    1 |            1
++    8 |     -9 |     -8 |    1 |            1
++    9 |     -9 |     11 |    1 |           -1
++   10 |     -8 |     -7 |    1 |            1
++   11 |     -8 |     -4 |    1 |            1
++   12 |     -7 |     -6 |    1 |            1
++   13 |     -4 |     -1 |    1 |            1
++   14 |     -3 |     -2 |    1 |           -1
++   15 |     -3 |      5 |    1 |           -1
++   16 |     -2 |     -1 |    1 |           -1
++   17 |     -2 |      4 |    1 |           -1
++   18 |      5 |     -8 |    1 |           -1
++   19 |      5 |      9 |    1 |           -1
++   20 |      5 |     11 |    1 |           -1
++   21 |      7 |     -4 |    1 |            1
++   22 |      8 |     11 |    1 |           -1
++   23 |     10 |     12 |    1 |           -1
++   24 |     11 |     13 |    1 |           -1
++   25 |     12 |     13 |    1 |           -1
++   26 |     13 |    -15 |    1 |           -1
++   27 |     16 |     -9 |    1 |            1
++   28 |     16 |     15 |    1 |            1
++ (28 rows)
++
++-- q2
++SELECT * FROM pgr_lineGraph(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    FALSE
++);
++ seq | source | target | cost | reverse_cost
++-----+--------+--------+------+--------------
++   1 |     -2 |     -1 |    1 |           -1
++   2 |     -4 |     -1 |    1 |           -1
++   3 |      4 |     -1 |    1 |           -1
++   4 |      1 |      4 |    1 |           -1
++   5 |     -2 |      4 |    1 |           -1
++   6 |     -1 |      4 |    1 |           -1
++   7 |     -2 |      1 |    1 |           -1
++   8 |     -4 |      1 |    1 |           -1
++   9 |      4 |      1 |    1 |           -1
++  10 |      1 |     -2 |    1 |           -1
++  11 |     -4 |     -2 |    1 |           -1
++  12 |     -1 |     -2 |    1 |           -1
++  13 |      4 |     -2 |    1 |           -1
++  14 |      1 |     -4 |    1 |           -1
++  15 |     -2 |     -4 |    1 |           -1
++  16 |     -1 |     -4 |    1 |           -1
++  17 |     -3 |     -2 |    1 |           -1
++  18 |      5 |     -2 |    1 |           -1
++  19 |     -3 |      5 |    1 |           -1
++  20 |     -2 |      5 |    1 |           -1
++  21 |     -2 |     -3 |    1 |           -1
++  22 |      5 |     -3 |    1 |           -1
++  23 |    -16 |     -3 |    1 |           -1
++  24 |     16 |     -3 |    1 |           -1
++  25 |     -3 |     16 |    1 |           -1
++  26 |     -3 |    -16 |    1 |           -1
++  27 |      7 |     -4 |    1 |           -1
++  28 |     -8 |     -4 |    1 |           -1
++  29 |    -10 |     -4 |    1 |           -1
++  30 |     -7 |     -4 |    1 |           -1
++  31 |      8 |     -4 |    1 |           -1
++  32 |     10 |     -4 |    1 |           -1
++  33 |      4 |     -7 |    1 |           -1
++  34 |     -8 |     -7 |    1 |           -1
++  35 |    -10 |     -7 |    1 |           -1
++  36 |     -4 |     -7 |    1 |           -1
++  37 |      8 |     -7 |    1 |           -1
++  38 |     10 |     -7 |    1 |           -1
++  39 |      4 |      8 |    1 |           -1
++  40 |      7 |      8 |    1 |           -1
++  41 |    -10 |      8 |    1 |           -1
++  42 |     -4 |      8 |    1 |           -1
++  43 |     -7 |      8 |    1 |           -1
++  44 |     10 |      8 |    1 |           -1
++  45 |      4 |     10 |    1 |           -1
++  46 |      7 |     10 |    1 |           -1
++  47 |     -8 |     10 |    1 |           -1
++  48 |     -4 |     10 |    1 |           -1
++  49 |     -7 |     10 |    1 |           -1
++  50 |      8 |     10 |    1 |           -1
++  51 |      7 |      4 |    1 |           -1
++  52 |     -8 |      4 |    1 |           -1
++  53 |    -10 |      4 |    1 |           -1
++  54 |     -7 |      4 |    1 |           -1
++  55 |      8 |      4 |    1 |           -1
++  56 |     10 |      4 |    1 |           -1
++  57 |      4 |      7 |    1 |           -1
++  58 |     -8 |      7 |    1 |           -1
++  59 |    -10 |      7 |    1 |           -1
++  60 |     -4 |      7 |    1 |           -1
++  61 |      8 |      7 |    1 |           -1
++  62 |     10 |      7 |    1 |           -1
++  63 |      4 |     -8 |    1 |           -1
++  64 |      7 |     -8 |    1 |           -1
++  65 |    -10 |     -8 |    1 |           -1
++  66 |     -4 |     -8 |    1 |           -1
++  67 |     -7 |     -8 |    1 |           -1
++  68 |     10 |     -8 |    1 |           -1
++  69 |      4 |    -10 |    1 |           -1
++  70 |      7 |    -10 |    1 |           -1
++  71 |     -8 |    -10 |    1 |           -1
++  72 |     -4 |    -10 |    1 |           -1
++  73 |     -7 |    -10 |    1 |           -1
++  74 |      8 |    -10 |    1 |           -1
++  75 |      5 |     -8 |    1 |           -1
++  76 |     -9 |     -8 |    1 |           -1
++  77 |      9 |     -8 |    1 |           -1
++  78 |     11 |     -8 |    1 |           -1
++  79 |      5 |      9 |    1 |           -1
++  80 |      8 |      9 |    1 |           -1
++  81 |     -8 |      9 |    1 |           -1
++  82 |     11 |      9 |    1 |           -1
++  83 |      5 |     11 |    1 |           -1
++  84 |      8 |     11 |    1 |           -1
++  85 |     -9 |     11 |    1 |           -1
++  86 |     -8 |     11 |    1 |           -1
++  87 |      9 |     11 |    1 |           -1
++  88 |      8 |      5 |    1 |           -1
++  89 |     -9 |      5 |    1 |           -1
++  90 |     -8 |      5 |    1 |           -1
++  91 |      9 |      5 |    1 |           -1
++  92 |     11 |      5 |    1 |           -1
++  93 |      5 |      8 |    1 |           -1
++  94 |     -9 |      8 |    1 |           -1
++  95 |      9 |      8 |    1 |           -1
++  96 |     11 |      8 |    1 |           -1
++  97 |      5 |     -9 |    1 |           -1
++  98 |      8 |     -9 |    1 |           -1
++  99 |     -8 |     -9 |    1 |           -1
++ 100 |     11 |     -9 |    1 |           -1
++ 101 |     -7 |     -6 |    1 |           -1
++ 102 |      7 |     -6 |    1 |           -1
++ 103 |      6 |      7 |    1 |           -1
++ 104 |     -6 |      7 |    1 |           -1
++ 105 |     -7 |      6 |    1 |           -1
++ 106 |      7 |      6 |    1 |           -1
++ 107 |      6 |     -7 |    1 |           -1
++ 108 |     -6 |     -7 |    1 |           -1
++ 109 |    -15 |     -9 |    1 |           -1
++ 110 |     16 |     -9 |    1 |           -1
++ 111 |     15 |     -9 |    1 |           -1
++ 112 |    -16 |     -9 |    1 |           -1
++ 113 |      9 |     15 |    1 |           -1
++ 114 |     16 |     15 |    1 |           -1
++ 115 |     -9 |     15 |    1 |           -1
++ 116 |    -16 |     15 |    1 |           -1
++ 117 |      9 |    -16 |    1 |           -1
++ 118 |    -15 |    -16 |    1 |           -1
++ 119 |     -9 |    -16 |    1 |           -1
++ 120 |     15 |    -16 |    1 |           -1
++ 121 |    -15 |      9 |    1 |           -1
++ 122 |     16 |      9 |    1 |           -1
++ 123 |     15 |      9 |    1 |           -1
++ 124 |    -16 |      9 |    1 |           -1
++ 125 |      9 |    -15 |    1 |           -1
++ 126 |     16 |    -15 |    1 |           -1
++ 127 |     -9 |    -15 |    1 |           -1
++ 128 |    -16 |    -15 |    1 |           -1
++ 129 |      9 |     16 |    1 |           -1
++ 130 |    -15 |     16 |    1 |           -1
++ 131 |     -9 |     16 |    1 |           -1
++ 132 |     15 |     16 |    1 |           -1
++ 133 |    -14 |    -10 |    1 |           -1
++ 134 |     12 |    -10 |    1 |           -1
++ 135 |     14 |    -10 |    1 |           -1
++ 136 |     10 |     12 |    1 |           -1
++ 137 |    -14 |     12 |    1 |           -1
++ 138 |    -10 |     12 |    1 |           -1
++ 139 |     14 |     12 |    1 |           -1
++ 140 |     10 |     14 |    1 |           -1
++ 141 |    -10 |     14 |    1 |           -1
++ 142 |     12 |     14 |    1 |           -1
++ 143 |    -14 |     10 |    1 |           -1
++ 144 |     12 |     10 |    1 |           -1
++ 145 |     14 |     10 |    1 |           -1
++ 146 |     10 |    -14 |    1 |           -1
++ 147 |    -10 |    -14 |    1 |           -1
++ 148 |     12 |    -14 |    1 |           -1
++ 149 |     11 |     13 |    1 |           -1
++ 150 |     12 |     13 |    1 |           -1
++ 151 |     12 |     11 |    1 |           -1
++ 152 |     13 |     11 |    1 |           -1
++ 153 |     11 |     12 |    1 |           -1
++ 154 |     13 |     12 |    1 |           -1
++ 155 |     13 |    -15 |    1 |           -1
++ 156 |     15 |     13 |    1 |           -1
++ 157 |    -15 |     13 |    1 |           -1
++ 158 |     13 |     15 |    1 |           -1
++(158 rows)
++
++-- q3
++SELECT * FROM pgr_lineGraph(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table255'
++);
++seq | source | target | cost | reverse_cost
++-----+--------+--------+------+--------------
++    1 |     -3 |      2 |    1 |           -1
++    2 |      1 |      3 |    1 |           -1
++    3 |      2 |      1 |    1 |            1
++(3 rows)
++
++ROLLBACK;
++ROLLBACK
+diff --git a/src/lineGraph/test/doc-lineGraph.test.sql b/src/lineGraph/test/doc-lineGraph.test.sql
+new file mode 100644
+index 000000000..161352762
+--- /dev/null
++++ b/src/lineGraph/test/doc-lineGraph.test.sql
+@@ -0,0 +1,15 @@
++
++\echo -- q1
++SELECT * FROM pgr_lineGraph(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table'
++);
++
++\echo -- q2
++SELECT * FROM pgr_lineGraph(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table',
++    FALSE
++);
++\echo -- q3
++SELECT * FROM pgr_lineGraph(
++    'SELECT id, source, target, cost, reverse_cost FROM edge_table255'
++);
+diff --git a/src/lineGraph/test/pgtap/lineGraph-innerQuery.sql b/src/lineGraph/test/pgtap/lineGraph-innerQuery.sql
+new file mode 100644
+index 000000000..6f105737a
+--- /dev/null
++++ b/src/lineGraph/test/pgtap/lineGraph-innerQuery.sql
+@@ -0,0 +1,20 @@
++\i setup.sql
++
++SELECT plan(137);
++SET client_min_messages TO ERROR;
++
++
++SELECT has_function('pgr_linegraph',
++    ARRAY['text', 'boolean']);
++
++SELECT function_returns('pgr_linegraph',
++    ARRAY['text', 'boolean'],
++    'setof record');
++
++SELECT style_lineGraph('pgr_linegraph', ')');
++SELECT style_lineGraph('pgr_linegraph', ', true)');
++SELECT style_lineGraph('pgr_linegraph', ', false)');
++
++
++SELECT finish();
++ROLLBACK;
+diff --git a/src/lineGraph/test/pgtap/lineGraph-typesCheck.sql b/src/lineGraph/test/pgtap/lineGraph-typesCheck.sql
+new file mode 100644
+index 000000000..0eb3c48e4
+--- /dev/null
++++ b/src/lineGraph/test/pgtap/lineGraph-typesCheck.sql
+@@ -0,0 +1,14 @@
++
++SELECT plan(4);
++
++SELECT has_function('pgr_linegraph');
++
++SELECT has_function('pgr_linegraph', ARRAY[ 'text', 'boolean' ]);
++
++SELECT function_returns('pgr_linegraph', ARRAY[ 'text', 'boolean' ], 'setof record');
++
++-- testing column names
++SELECT bag_has(
++    $$SELECT  proargnames from pg_proc where proname = 'pgr_linegraph'$$,
++    $$SELECT  '{"","directed","seq","source","target","cost","reverse_cost"}'::TEXT[] $$
++);
+diff --git a/src/lineGraph/test/test.conf b/src/lineGraph/test/test.conf
+new file mode 100644
+index 000000000..f21688a30
+--- /dev/null
++++ b/src/lineGraph/test/test.conf
+@@ -0,0 +1,17 @@
++#!/usr/bin/perl -w
++
++%main::tests = (
++    'any' => {
++        'comment' => 'Dijkstra test for any versions.',
++        'data' => [ ],
++        'tests' => [qw(
++            doc-lineGraph
++            )],
++        'documentation' => [qw(
++            doc-lineGraph
++            )]
++    },
++
++);
++
++1;
+diff --git a/tools/testers/inner_styles.sql b/tools/testers/inner_styles.sql
+index c41ff5dfc..c21606e08 100644
+--- a/tools/testers/inner_styles.sql
++++ b/tools/testers/inner_styles.sql
+@@ -73,6 +73,86 @@ END;
+ $BODY$
+ LANGUAGE plpgsql;
+ 
++CREATE OR REPLACE FUNCTION style_dijkstraTRSP(fn TEXT, rest_sql TEXT)
++RETURNS SETOF TEXT AS
++$BODY$
++BEGIN
++
++--with reverse cost
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'id');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'source');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'target');
++RETURN QUERY SELECT test_anyNumerical(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'cost');
++RETURN QUERY SELECT test_anyNumerical(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'reverse_cost');
++
++
++--without reverse cost
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'id');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'source');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'target');
++RETURN QUERY SELECT test_anyNumerical(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'cost');
++END;
++$BODY$
++LANGUAGE plpgsql;
++
++CREATE OR REPLACE FUNCTION style_lineGraph(fn TEXT, rest_sql TEXT)
++RETURNS SETOF TEXT AS
++$BODY$
++BEGIN
++
++--with reverse cost
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'id');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'source');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'target');
++RETURN QUERY SELECT test_anyNumerical(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'cost');
++RETURN QUERY SELECT test_anyNumerical(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost', 'reverse_cost'],
++    'reverse_cost');
++
++
++--without reverse cost
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'id');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'source');
++RETURN QUERY SELECT test_anyInteger(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'target');
++RETURN QUERY SELECT test_anyNumerical(fn, rest_sql,
++    ARRAY['id', 'source', 'target', 'cost'],
++    'cost');
++END;
++$BODY$
++LANGUAGE plpgsql;
++
+ 
+ CREATE OR REPLACE FUNCTION style_astar(fn TEXT, rest_sql TEXT)
+ RETURNS SETOF TEXT AS
+diff --git a/tools/testers/pg_prove_tests.sh b/tools/testers/pg_prove_tests.sh
+index f22d88f5c..217b8277e 100755
+--- a/tools/testers/pg_prove_tests.sh
++++ b/tools/testers/pg_prove_tests.sh
+@@ -1,12 +1,12 @@
+ #!/bin/bash
+ # ------------------------------------------------------------------------------
+-# Travis CI scripts 
++# Travis CI scripts
+ # Copyright(c) pgRouting Contributors
+ #
+ # Test pgRouting
+ # ------------------------------------------------------------------------------
+ 
+-set -e 
++set -e
+ 
+ PGUSER=$1
+ RELEASE_TYPE="b$2"
+@@ -18,10 +18,10 @@ PGDATABASE="___pgr___test___"
+ run_psql () {
+     PGOPTIONS='--client-min-messages=warning' psql -U $PGUSER  -d $PGDATABASE -X -q -v ON_ERROR_STOP=1 --pset pager=off "$@"
+     if [ "$?" -ne 0 ]
+-    then 
++    then
+         echo "Test query failed: $@"
+         ERROR=1
+-    fi 
++    fi
+ }
+ 
+ 
+@@ -39,6 +39,10 @@ then
+     echo "MADE TEST **********************"
+ fi
+ 
++#pg_prove ../../src/dijkstraTRSP/test/pgtap/* -d $PGDATABASE -U $PGUSER
++
++pg_prove ../../src/lineGraph/test/pgtap/* -d $PGDATABASE -U $PGUSER
++
+ pg_prove -d $PGDATABASE  -U $PGUSER ../../pgtap/*/*
+ 
+ if [ "$?" -ne 0 ]
+diff --git a/tools/testers/sampledata.sql b/tools/testers/sampledata.sql
+index 5dd587feb..f1eb93cca 100644
+--- a/tools/testers/sampledata.sql
++++ b/tools/testers/sampledata.sql
+@@ -5,7 +5,7 @@ SET client_min_messages = WARNING;
+ 
+ ------------------------------------------------------------------------------------------------------
+ ------------------------------------------------------------------------------------------------------
+---              SAMPLE DATA                
++--              SAMPLE DATA
+ ------------------------------------------------------------------------------------------------------
+ ------------------------------------------------------------------------------------------------------
+ 
+@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS edge_table;
+ DROP TABLE IF EXISTS edge_table_vertices_pgr;
+ DROP table if exists pointsOfInterest;
+ DROP TABLE IF EXISTS restrictions;
++DROP TABLE IF EXISTS retrict;
+ DROP TABLE IF EXISTS vertex_table;
+ DROP TABLE IF EXISTS categories;
+ DROP TABLE IF EXISTS vehicles;
+@@ -42,7 +43,7 @@ INSERT INTO edge_table (
+     cost, reverse_cost,
+     capacity, reverse_capacity,
+     x1, y1,
+-    x2, y2) VALUES 
++    x2, y2) VALUES
+ (3, 1,    1,  1,  80, 130,   2,   0,    2, 1),
+ (3, 2,   -1,  1,  -1, 100,   2,   1,    3, 1),
+ (2, 1,   -1,  1,  -1, 130,   3,   1,    4, 1),
+@@ -97,6 +98,34 @@ UPDATE pointsOfInterest
+     FROM edge_table AS e WHERE edge_id = id;
+ 
+ --RESTRICTIONS CREATE
++CREATE TABLE restrict (
++    id BIGSERIAL,
++    restricted_edges BIGINT[] ,
++    cost FLOAT
++);
++
++INSERT INTO restrict(restricted_edges, cost) VALUES
++('{4, 7}', -1),
++('{7, 8, 11}', -1),
++('{7, 8, 5}', -1),
++('{7, 4}', -1),
++('{7, 8}', -1),
++('{9, 11}', -1),
++('{9, 8}', -1);
++
++Create Table edge_table255(
++    id BIGINT,
++    source BIGINT,
++    target BIGINT,
++    cost FLOAT,
++    reverse_cost FLOAT
++);
++
++INSERT INTO edge_table255(id, source, target, cost, reverse_cost) VALUES
++(1, 1, 2, 10.0, -1),
++(2, 2, 1, 25.0, -1),
++(3, 2, 3, 20.0, 25.0);
++
+ CREATE TABLE restrictions (
+     rid BIGINT NOT NULL,
+     to_cost FLOAT,
+@@ -187,13 +216,13 @@ INSERT INTO orders
+ (demand,
+     p_node_id,  p_x, p_y,  p_open,  p_close,  p_service,
+     d_node_id,  d_x, d_y,  d_open,  d_close,  d_service) VALUES
+-(10, 
++(10,
+             3,    3,   1,      2,         10,          3,
+             8,    1,   2,      6,         15,          3),
+-(20, 
++(20,
+             9,    4,   2,      4,         15,          2,
+             4,    4,   1,      6,         20,          3),
+-(30, 
++(30,
+             5,    2,   2,      2,         10,          3,
+            11,    3,   3,      3,         20,          3);
+ 
